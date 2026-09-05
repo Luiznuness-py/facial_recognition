@@ -502,34 +502,18 @@ aps-biometria/
 - Criar volume persistente para não perder os dados do banco.
 - Criar arquivo `.env.example` com as variáveis de conexão.
 - Criar banco da APS no container.
-- Criar tabelas iniciais pelo arquivo `sql/schema.sql`.
+- Criar tabelas iniciais.
 - Criar conexão manual do backend com o PostgreSQL.
 - Testar inserts e selects simples.
 
-### Etapa 3 — Frontend básico
-
-- Criar `index.html`.
-- Criar tela de autenticação.
-- Criar CSS inicial.
-- Criar JavaScript para abrir webcam.
-- Capturar imagem da câmera.
-
-### Etapa 4 — Backend básico
-
-- Criar API FastAPI.
-- Criar rota de status.
-- Criar rota para receber imagem.
-- Validar se a imagem chegou corretamente.
-- Retornar resposta JSON simples.
-
-### Etapa 5 — Dataset
+### Etapa 3 — Dataset
 
 - Criar tela ou script para capturar imagens.
 - Organizar imagens por pessoa.
 - Separar imagens brutas e processadas.
 - Padronizar tamanho das imagens.
 
-### Etapa 6 — Modelo
+### Etapa 4 — Modelo
 
 - Criar CNN siamesa com TensorFlow/Keras.
 - Criar pares positivos e negativos.
@@ -537,7 +521,7 @@ aps-biometria/
 - Salvar o modelo treinado.
 - Criar script para gerar embeddings.
 
-### Etapa 7 — Cadastro biométrico
+### Etapa 5 — Cadastro biométrico
 
 - Criar tela de cadastro de usuário.
 - Salvar dados do usuário no PostgreSQL.
@@ -545,7 +529,7 @@ aps-biometria/
 - Gerar embeddings.
 - Salvar embeddings na tabela `templates_biometricos`.
 
-### Etapa 8 — Autenticação
+### Etapa 6 — Autenticação
 
 - Receber imagem pela API.
 - Gerar embedding.
@@ -554,6 +538,23 @@ aps-biometria/
 - Identificar usuário mais provável.
 - Verificar permissão.
 - Retornar resultado para o frontend.
+
+### Etapa 7 — Backend básico
+
+- Criar API FastAPI.
+- Criar rota de status.
+- Criar rota para receber imagem.
+- Validar se a imagem chegou corretamente.
+- Retornar resposta JSON simples.
+
+### Etapa 8 — Frontend básico
+
+- Criar `index.html`.
+- Criar tela de autenticação.
+- Criar CSS inicial.
+- Criar JavaScript para abrir webcam.
+- Capturar imagem da câmera.
+
 
 ### Etapa 9 — Logs e relatórios
 
@@ -572,7 +573,7 @@ aps-biometria/
 
 ---
 
-## 23. Resumo final da proposta
+## 15. Resumo final da proposta
 
 A proposta final é desenvolver um sistema local de autenticação biométrica facial com frontend em HTML/CSS/JavaScript, backend em FastAPI, PostgreSQL executando em Docker e modelo próprio em TensorFlow/Keras.
 
@@ -603,7 +604,7 @@ O modelo não memoriza usuários fixos. Ele aprende a extrair características f
 
 ---
 
-## 20. MVP do sistema
+## 16. MVP do sistema
 
 O MVP deve conter apenas o necessário para demonstrar o projeto funcionando.
 
