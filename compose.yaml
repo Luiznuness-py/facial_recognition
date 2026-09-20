@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+volumes:
+  pgdata:
+
+# O fastasync_database é utilizado para:
+  # Sobe uma imagem do postgres na porta 5432:5432
+
+# O Volumes é utilizado para:
+  # Montar um caminho onde o PostgreSQL salva os dados dentro do container,
+  # garantindo que os dados do banco não se percam ao reiniciar o container.
+
+# O Healthcheck é utilizado para:
+  # Verificar se o banco de dados está pronto para receber conexões.
