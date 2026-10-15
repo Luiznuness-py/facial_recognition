@@ -1,199 +1,46 @@
-# Arquitetura da APS — Sistema de Autenticação Biométrica Facial
+# APS — Laboratório de Biossegurança Ambiental
 
-## Contexto do projeto
+Projeto acadêmico local de autenticação facial e controle de acesso para um laboratório fictício do Ministério do Meio Ambiente. MVP reduzido aprovado em 05/10/2026: N1 registra uma investigação de agente desconhecido, N2 revisa e conclui, N3 decide a divulgação. Autenticação permanece como definida.
 
-O projeto da APS tem como tema o desenvolvimento de um sistema de identificação e autenticação biométrica. A proposta consiste em criar uma solução de reconhecimento facial capaz de identificar usuários e permitir ou negar acesso conforme um esquema de permissões.
+## Estado do projeto
 
-No cenário proposto, o sistema controla o acesso a um cofre fictício de segurança máxima do Ministério do Meio Ambiente. Apenas usuários autorizados podem acessar o sistema, e cada usuário possui um nível de permissão diferente.
+Regras e contratos estão em planejamento. A base existente contém configuração/conexão PostgreSQL e migrations; a documentação não significa que a API, páginas ou integração biométrica já funcionam. Nesta etapa, somente documentação está sendo montada.
 
-Os níveis definidos são:
+**Atenção:** `main.py` executa migrations e depois remove as tabelas no teste manual atual. Não executar sobre dados que precisam ser preservados. A entrada normal da API ainda será definida.
 
-- **Nível 1:** acesso concedido a indivíduos com permissão geral.
-- **Nível 2:** acesso restrito aos diretores de divisões específicas.
-- **Nível 3:** acesso exclusivo ao ministro do Meio Ambiente.
+## Documentação para revisar
 
-A solução precisa demonstrar o funcionamento da autenticação facial, desde a captura da imagem até a decisão final de acesso permitido ou negado.
+Leia nesta ordem:
 
----
+1. [Como funciona o sistema](docs/BUSINESS_RULES.md): objetivo, participantes, acesso, fluxo e regras essenciais em linguagem simples.
+2. [Exemplo completo](docs/USE_CASES.md): uma investigação preenchida para visualizar o fluxo; inclui exemplos técnicos.
+3. [Endpoints e suas finalidades](docs/ENDPOINTS.md): chamadas das telas, dados, verificações, respostas e escolhas de implementação.
+4. [Tabelas e campos](docs/DATABASE_TARGET.md): estrutura e garantias do banco alvo.
 
-# Laboratório de Biossegurança Ambiental
+Esses arquivos são a referência atual do planejamento, ainda para revisão. A documentação descreve o desenho do sistema e não representa código já implementado.
 
-Sistema de identificação e autenticação biométrica facial para controle de acesso às informações de um laboratório fictício do Ministério do Meio Ambiente.
+## Fluxo e responsabilidades
 
-O sistema acompanha a investigação de agentes biológicos potencialmente perigosos, desde o registro técnico inicial até a decisão ministerial de manter a informação sigilosa ou divulgá-la ao público.
+- N1 cadastra agente e assume a primeira validação. Como responsável, edita/envia e compartilha com N1 do grupo; como colaborador, somente consulta a tarefa compartilhada.
+- N2 do grupo abre as validações seguintes e escolhe responsável; revisa, devolve, encerra ou envia conclusão/ficha ao N3. Cards Enviadas ao N3 mostram título, agente vinculado e situação da decisão, sem relatório selado. Um N2 habilitado por equipe.
+- N3 consulta o cofre e publica a ficha preparada ou mantém restrito; pode retirar notícia. Um N3 ativo.
+- ADMIN gerencia contas/acesso, sem conteúdo técnico/cofre pelo cargo; público consulta somente notícias aprovadas.
 
-## Objetivo
+Cadastro em `biological_agents`, análise em `validations`. Várias validações por agente, uma em andamento. Encerramento ou publicação libera outra; envio ao N3 mantém a vaga ocupada. Sigilo decidido pelo N3, sem pedido de ajuste ou nova validação, encerra a tarefa automaticamente e libera outra. Um responsável edita; colaboradores apenas leem. Compartilhamento pelo N1 responsável ou N2 supervisor do grupo, somente com N1 ativos do mesmo grupo; colaboradores apenas leem.
 
-Demonstrar autenticação facial em tempo real, controle de acesso por nível, colaboração técnica, rastreabilidade e tratamento de informações sigilosas.
+Seis tabelas do laboratório: `biological_agents`, `validations`, `validation_participants`, `investigation_submissions`, `dossiers` e `publications`. Entregas/dossiês pertencem à validação; publicação ao dossiê. Relatório e ficha juntos no cofre, sem acesso selado pelos colaboradores. Contas/autenticação usam as tabelas já definidas.
 
-O projeto atende ao tema da APS: desenvolvimento de um sistema de identificação e autenticação biométrica, utilizando as cinco fases do processamento digital de imagens.
+Sem transferência entre grupos, rascunho ministerial separado, retificação, devolução pública ou substituição de notícia. Original/histórico preservados; retirada de publicação não reabre a tarefa anterior.
 
-## Contexto
+## Acesso e autenticação
 
-O laboratório recebe amostras de agentes biológicos desconhecidos ou potencialmente perigosos encontrados no meio ambiente.
+Sem cadastro público. N2 solicita N1 da própria equipe; N3 solicita N2; ADMIN aprova ou cadastra diretamente. Temporária entregue manualmente, ativação com face e senha definitiva. ADMIN dispensa biometria. Reativação sempre exige reset de senha/face.
 
-Cada agente é associado a uma especialidade técnica, como Bactérias Ambientais ou Toxinas. A equipe técnica registra e valida os casos; um diretor ou supervisor da mesma especialidade revisa o resultado.
+Papéis/permissões no banco, autorização central por ação e recurso. Credenciais restritas de etapa, access JWT e refresh opaco em cookies HttpOnly. Detalhes completos, incluindo CSRF, expiração, recuperação e limites, ficam no plano geral e contratos.
 
-Quando necessário, o diretor encaminha um relatório ao ministro do Meio Ambiente. O sistema então cria um dossiê sigiloso no cofre.
+## Tecnologias e divisão
 
-O cofre não guarda todos os dados técnicos do caso. Ele guarda exclusivamente o dossiê ministerial selado. Somente o ministro pode abrir seu conteúdo.
-
-## Níveis de acesso
-
-### Nível 1 — Equipe técnica
-
-- Realiza login, senha e autenticação facial.
-- Cadastra agentes em sua própria especialidade.
-- Inicia validações técnicas.
-- Inclui técnicos colaboradores da mesma especialidade.
-- Registra sua própria análise técnica.
-- Vê somente validações que criou ou das quais participa.
-- Não acessa relatórios ministeriais, cofre ou publicações em rascunho.
-
-### Nível 2 — Diretor ou supervisor
-
-- Realiza login, senha e autenticação facial.
-- Lidera uma especialidade técnica.
-- Vê e revisa todas as validações de sua especialidade.
-- Devolve uma validação para correção.
-- Encerra um caso que não exige encaminhamento ministerial.
-- Cria relatórios técnicos.
-- Encaminha relatórios relevantes ao ministro.
-- Após o envio, vê somente protocolo e status do dossiê.
-- Não acessa o conteúdo selado no cofre.
-
-### Nível 3 — Ministro do Meio Ambiente
-
-- Realiza login, senha e autenticação facial.
-- Acessa todos os dossiês selados no cofre.
-- Mantém o conteúdo sigiloso ou cria uma publicação pública.
-- Recebe retificações de relatórios enviados.
-- Decide qual versão de um relatório deve ser considerada.
-
-### Público
-
-- Não realiza autenticação.
-- Acessa somente informações publicadas pelo ministro.
-- Nunca acessa validações técnicas, relatórios internos ou conteúdo do cofre.
-
-## Especialidades e colaboração
-
-Todo agente biológico deve ser cadastrado com uma especialidade obrigatória.
-
-Para o MVP, a especialidade do agente não pode ser alterada pela interface após o cadastro.
-
-Uma validação pode ter vários técnicos colaboradores. Um técnico só pode ser incluído como colaborador se pertencer à mesma especialidade da validação.
-
-Cada colaborador registra sua própria contribuição com autor e data. Um colaborador não pode alterar silenciosamente a análise de outro técnico.
-
-## Autenticação
-
-O acesso às áreas autenticadas exige dois fatores:
-
-1. Login e senha.
-2. Biometria facial.
-
-O sistema só libera a área correspondente ao nível do usuário após validar os dois fatores.
-
-A biometria facial utiliza embeddings. As imagens capturadas são processadas e descartadas; o banco armazena somente os templates biométricos necessários para comparação.
-
-## Fluxo de validação
-
-```text
-N1 cadastra o agente e inicia a validação
-          ↓
-N1 inclui colaboradores da mesma especialidade
-          ↓
-Os técnicos registram análises individuais
-          ↓
-N2 revisa a validação
- ├─ devolve para correção
- ├─ encerra o caso
- └─ cria relatório técnico
-          ↓
-N2 encaminha o relatório ao ministro
-          ↓
-O sistema cria um dossiê selado no cofre
-          ↓
-N3 analisa o dossiê
- ├─ mantém o conteúdo sigiloso
- └─ cria uma publicação pública
-```
-
-## Cofre e retificações
-
-O encaminhamento de um relatório ao ministro cria uma versão selada no cofre.
-
-O N2 não pode editar nem excluir um dossiê selado.
-
-Caso o N2 identifique um erro após o envio, ele deve criar uma retificação ou uma nova versão do relatório. O ministro recebe o aviso e decide qual versão considerar.
-
-O histórico de versões e retificações é preservado para auditoria.
-
-## Publicação pública
-
-Uma publicação é um registro separado do dossiê sigiloso.
-
-O conteúdo do cofre nunca é copiado automaticamente para a página pública. O ministro redige e revisa uma versão segura e resumida para divulgação.
-
-Somente o ministro pode criar, publicar ou retirar uma publicação pública.
-
-Retirar uma publicação não apaga seu histórico; a decisão e a data devem permanecer registradas.
-
-## Regras de negócio
-
-1. O acesso autenticado exige login, senha e biometria facial válidos.
-2. Cada usuário possui um nível de acesso: N1, N2 ou N3.
-3. Todo agente biológico possui uma especialidade obrigatória.
-4. A especialidade do agente não pode ser alterada pela interface no MVP.
-5. N1 cadastra agentes somente em sua própria especialidade.
-6. N1 vê somente validações que criou ou das quais participa.
-7. Um colaborador deve pertencer à mesma especialidade da validação.
-8. Cada análise técnica registra autor e data.
-9. N2 revisa somente validações da especialidade que lidera.
-10. N2 pode devolver, encerrar ou encaminhar um caso ao ministro.
-11. Um relatório encaminhado cria um dossiê selado no cofre.
-12. Apenas N3 pode ler o conteúdo de um dossiê no cofre.
-13. N2 não pode editar ou excluir um dossiê selado.
-14. Correções posteriores devem ser registradas como retificação ou nova versão.
-15. Somente N3 pode criar, publicar ou retirar uma publicação pública.
-16. O público vê somente publicações com status publicado.
-17. Autenticações, tentativas de acesso, alterações relevantes, envios, retificações e decisões devem gerar registros de auditoria.
-
-## Componentes previstos
-
-```text
-Frontend
-├── Página pública
-├── Login e biometria
-├── Área N1: cadastro e validações
-├── Área N2: revisão e relatórios
-└── Área N3: cofre e publicações
-
-Backend
-├── Autenticação
-├── Reconhecimento facial
-├── Gestão de especialidades, agentes e validações
-├── Gestão de relatórios, cofre e publicações
-└── Auditoria
-
-Banco de dados
-├── Usuários, papéis e especialidades
-├── Templates biométricos
-├── Agentes biológicos e validações colaborativas
-├── Relatórios e dossiês do cofre
-├── Publicações
-└── Logs de auditoria
-```
-
-## Tecnologias previstas
-
-- Frontend: HTML, CSS e JavaScript.
-- Backend: FastAPI.
-- Banco de dados: PostgreSQL.
-- Infraestrutura local: Docker.
-- Biometria facial: TensorFlow/Keras.
-- Persistência: SQL manual.
+Frontend HTML/CSS/JavaScript; FastAPI; PostgreSQL, SQL parametrizado e asyncpg. PostgreSQL pode executar em container local. Pipeline inicial YuNet/SFace e MiniFASNet/Silent-Face, com parâmetros a avaliar. Dupla do sistema usa simulador de desenvolvimento enquanto dupla dos modelos testa; simulador não comprova eficácia biométrica.
 
 ## Configuração local
 

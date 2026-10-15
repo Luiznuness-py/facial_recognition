@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 .venv/
+.venv-captura/
 venv/
 env/
 build/
@@ -12,6 +13,7 @@ dist/
 .ruff_cache/
 .coverage
 htmlcov/
+dataset/
 
 # Local configuration
 .env
