@@ -2,7 +2,7 @@
 
 Este arquivo mostra as tabelas e campos que vamos usar. O funcionamento está em [BUSINESS_RULES.md](BUSINESS_RULES.md) e os contratos das rotas em [ENDPOINTS.md](ENDPOINTS.md), e o exemplo completo em [USE_CASES.md](USE_CASES.md). A [migration inicial](../migrations/001_initial_schema.sql) agora define essa estrutura para bancos novos. Isso não comprova que o banco do projeto já foi atualizado ou que os serviços foram implementados.
 
-Nesta fase inicial, a estrutura fica concentrada na migration 001. Editá-la não modifica um banco onde ela já está registrada; a recriação de um banco de desenvolvimento depende de decisão explícita, pois apaga os dados existentes. A 001 inclui estados, limites, chaves, índices e proteção do conteúdo histórico; permissões, reserva de N2/N3, bloqueios transacionais e regras entre tabelas continuam sendo responsabilidade da implementação dos serviços. Os [testes SQL](../tests/test_initial_schema.sql) devem ser executados somente em um banco isolado com a 001 aplicada.
+Nesta fase inicial, a estrutura fica concentrada na migration 001. Editá-la não modifica um banco onde ela já está registrada; a recriação de um banco de desenvolvimento depende de decisão explícita, pois apaga os dados existentes. A 001 inclui estados, limites, chaves, índices e proteção do conteúdo histórico; permissões, reserva de N2/N3, bloqueios transacionais e regras entre tabelas continuam sendo responsabilidade da implementação dos serviços. Qualquer verificação SQL deve ser executada somente em banco isolado com a 001 aplicada. O arquivo anterior de testes SQL não está presente neste checkout.
 
 O banco alvo tem **18 tabelas**: 12 de contas, autorização e segurança; 6 do laboratório. Não é necessário adicionar uma tabela de rascunhos, uma de notícias em Markdown ou uma para cada nível.
 
@@ -225,3 +225,29 @@ A tabela inteira nunca vira resposta. Exemplo: card N2 recebe título/agente/sit
 ## O que realmente depende dos testes dos modelos
 
 Dimensão/serialização dos embeddings, versão compatível, quantidade e intervalo de frames, recorte, resolução interna e limiares. O desenho do banco não exige uma coluna para cada versão de modelo; vectors já registra versão e conteúdo criptografado. Tetos de upload são escolhas iniciais de operação, não precisão biométrica comprovada.
+
+## Schemas das rotas
+
+Os schemas são contratos de entrada e projeções de saída, não cópias completas das tabelas. A seleção de campos evita expor credenciais e conteúdo reservado. Consulte [cada endpoint e seus schemas](ENDPOINTS.md) e a base em [sc_base_model.py](../schemas/sc_base_model.py).
+
+| Tabela | Arquivo de schemas |
+| --- | --- |
+| `access_requests` | [sc_access_requests.py](../schemas/sc_access_requests.py) |
+| `audit_events` | [sc_audit_events.py](../schemas/sc_audit_events.py) |
+| `authentication_attempts` | [sc_authentication_attempts.py](../schemas/sc_authentication_attempts.py) |
+| `biological_agents` | [sc_biological_agents.py](../schemas/sc_biological_agents.py) |
+| `investigation_submissions` | [sc_investigation_submissions.py](../schemas/sc_investigation_submissions.py) |
+| `password_hashes` | [sc_password_hashes.py](../schemas/sc_password_hashes.py) |
+| `permissions` | [sc_permissions.py](../schemas/sc_permissions.py) |
+| `publications` | [sc_publications.py](../schemas/sc_publications.py) |
+| `refresh_tokens` | [sc_refresh_tokens.py](../schemas/sc_refresh_tokens.py) |
+| `role_permissions` | [sc_role_permissions.py](../schemas/sc_role_permissions.py) |
+| `roles` | [sc_roles.py](../schemas/sc_roles.py) |
+| `sessions` | [sc_sessions.py](../schemas/sc_sessions.py) |
+| `teams` | [sc_teams.py](../schemas/sc_teams.py) |
+| `users` | [sc_users.py](../schemas/sc_users.py) |
+| `validation_participants` | [sc_validation_participants.py](../schemas/sc_validation_participants.py) |
+| `validations` | [sc_validations.py](../schemas/sc_validations.py) |
+| `vault` | [sc_vault.py](../schemas/sc_vault.py) |
+
+`vectors` não possui corpo JSON próprio: as rotas biométricas recebem imagens por multipart. Vetores e hashes nunca são respostas públicas. `role_permissions` e `investigation_submissions` fornecem estruturas auxiliares; isso não cria endpoints CRUD.

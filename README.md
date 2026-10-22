@@ -93,3 +93,5 @@ python main.py
 > Nesta fase inicial, os ajustes de estrutura ficam na migration 001. Um banco
 > que já registrou essa versão não é atualizado ao editar o arquivo. Nenhum reset
 > é executado automaticamente; recriar o banco local exige uma decisão explícita.
+
+Os contratos em [ENDPOINTS.md](docs/ENDPOINTS.md) incluem links para os schemas de entrada e saída de cada rota. As distribuições em [AMANDA.md](docs/AMANDA.md), [JOAO.md](docs/JOAO.md) e [LUIZ.md](docs/LUIZ.md) repetem esses atalhos para facilitar a implementação.

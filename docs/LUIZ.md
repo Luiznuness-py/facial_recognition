@@ -18,50 +18,50 @@ Todos os endereços abaixo começam com `/api/v1`. `{id}` e `{user_id}` represen
 
 ## Etapa 2 - Consultas de apoio
 
-| Endpoint | Para que serve |
-| --- | --- |
-| [GET /health](ENDPOINTS.md#get-health) | Informar que a API responde, sem mostrar informações internas. |
-| [GET /teams](ENDPOINTS.md#get-teams) | Fornecer as equipes para seleções autorizadas. |
-| [GET /admin/roles](ENDPOINTS.md#get-adminroles) | Consultar os níveis de acesso e suas permissões. |
-| [GET /admin/permissions](ENDPOINTS.md#get-adminpermissions) | Consultar as ações conhecidas pelo sistema. |
-| [GET /admin/audit-events](ENDPOINTS.md#get-adminaudit-events) | Consultar eventos administrativos sem expor análises ou dados secretos. |
+| Endpoint | Para que serve | Schemas de entrada → saída |
+| --- | --- | --- |
+| [GET /health](ENDPOINTS.md#get-health) | Informar que a API responde, sem mostrar informações internas. | Sem corpo JSON → `dict[str, str]`, com `{"status":"ok"}`. |
+| [GET /teams](ENDPOINTS.md#get-teams) | Fornecer as equipes para seleções autorizadas. | [PaginationParams](../schemas/sc_base_model.py#L73) → [ListResponse](../schemas/sc_base_model.py#L90) de [TeamResponse](../schemas/sc_teams.py#L8) |
+| [GET /admin/roles](ENDPOINTS.md#get-adminroles) | Consultar os níveis de acesso e suas permissões. | Sem corpo JSON → `list` de [RoleResponse](../schemas/sc_roles.py#L12) (catálogo sem paginação). |
+| [GET /admin/permissions](ENDPOINTS.md#get-adminpermissions) | Consultar as ações conhecidas pelo sistema. | Sem corpo JSON → `list` de [PermissionResponse](../schemas/sc_permissions.py#L8) (catálogo sem paginação). |
+| [GET /admin/audit-events](ENDPOINTS.md#get-adminaudit-events) | Consultar eventos administrativos sem expor análises ou dados secretos. | [AuditEventQuery](../schemas/sc_audit_events.py#L37) → [ListResponse](../schemas/sc_base_model.py#L90) de [AuditEventResponse](../schemas/sc_audit_events.py#L12) |
 
 **Concluir quando:** Consultas retornam apenas os campos permitidos; catálogos administrativos não podem ser lidos por N1/N2/N3.
 
 ## Etapa 3 - Contas e solicitações
 
-| Endpoint | Para que serve |
-| --- | --- |
-| [POST /access-requests](ENDPOINTS.md#post-access-requests) | Solicitar conta ou cadastrar diretamente pelo administrador. |
-| [GET /access-requests](ENDPOINTS.md#get-access-requests) | Listar pedidos: próprios para solicitantes, todos para administrador. |
-| [GET /access-requests/{id}](ENDPOINTS.md#get-access-requestsid) | Consultar um pedido autorizado e sua decisão. |
-| [POST /access-requests/{id}/approve](ENDPOINTS.md#post-access-requestsidapprove) | Aprovar o pedido e criar a conta. |
-| [POST /access-requests/{id}/reject](ENDPOINTS.md#post-access-requestsidreject) | Rejeitar com motivo, sem criar conta. |
-| [GET /users](ENDPOINTS.md#get-users-e-get-usersid) | Listar contas para o administrador. |
-| [GET /users/{id}](ENDPOINTS.md#get-users-e-get-usersid) | Consultar dados administrativos de uma conta. |
-| [PATCH /users/{id}](ENDPOINTS.md#patch-usersid) | Corrigir nome, email, nível ou equipe, respeitando as restrições. |
-| [POST /users/{id}/deactivate](ENDPOINTS.md#post-usersiddeactivate) | Bloquear acesso preservando histórico. |
-| [POST /users/{id}/reactivate](ENDPOINTS.md#post-usersidreactivate) | Reativar com nova senha temporária e recadastro facial quando exigido. |
-| [POST /users/{id}/activation/revalidate](ENDPOINTS.md#post-usersidactivationrevalidate) | Renovar a validade da mesma senha temporária. |
-| [POST /users/{id}/recovery](ENDPOINTS.md#post-usersidrecovery) | Autorizar recuperação de senha, cadastro facial ou ambos. |
+| Endpoint | Para que serve | Schemas de entrada → saída |
+| --- | --- | --- |
+| [POST /access-requests](ENDPOINTS.md#post-access-requests) | Solicitar conta ou cadastrar diretamente pelo administrador. | [AccessRequestCreate](../schemas/sc_access_requests.py#L18) → [AccessRequestResponse](../schemas/sc_access_requests.py#L38) |
+| [GET /access-requests](ENDPOINTS.md#get-access-requests) | Listar pedidos: próprios para solicitantes, todos para administrador. | [AccessRequestQuery](../schemas/sc_access_requests.py#L79) → [ListResponse](../schemas/sc_base_model.py#L90) de [AccessRequestResponse](../schemas/sc_access_requests.py#L38) |
+| [GET /access-requests/{id}](ENDPOINTS.md#get-access-requestsid) | Consultar um pedido autorizado e sua decisão. | Sem corpo JSON → [AccessRequestResponse](../schemas/sc_access_requests.py#L38) |
+| [POST /access-requests/{id}/approve](ENDPOINTS.md#post-access-requestsidapprove) | Aprovar o pedido e criar a conta. | Sem corpo JSON → [AccessRequestResponse](../schemas/sc_access_requests.py#L38) |
+| [POST /access-requests/{id}/reject](ENDPOINTS.md#post-access-requestsidreject) | Rejeitar com motivo, sem criar conta. | [AccessRequestReject](../schemas/sc_access_requests.py#L66) → [AccessRequestResponse](../schemas/sc_access_requests.py#L38) |
+| [GET /users](ENDPOINTS.md#get-users-e-get-usersid) | Listar contas para o administrador. | [UserQuery](../schemas/sc_users.py#L175) → [ListResponse](../schemas/sc_base_model.py#L90) de [UserResponse](../schemas/sc_users.py#L46) |
+| [GET /users/{id}](ENDPOINTS.md#get-users-e-get-usersid) | Consultar dados administrativos de uma conta. | Sem corpo JSON → [UserResponse](../schemas/sc_users.py#L46) |
+| [PATCH /users/{id}](ENDPOINTS.md#patch-usersid) | Corrigir nome, email, nível ou equipe, respeitando as restrições. | [UserUpdate](../schemas/sc_users.py#L88) → [UserResponse](../schemas/sc_users.py#L46) |
+| [POST /users/{id}/deactivate](ENDPOINTS.md#post-usersiddeactivate) | Bloquear acesso preservando histórico. | [UserDeactivate](../schemas/sc_users.py#L118) → [UserResponse](../schemas/sc_users.py#L46) |
+| [POST /users/{id}/reactivate](ENDPOINTS.md#post-usersidreactivate) | Reativar com nova senha temporária e recadastro facial quando exigido. | [UserReactivate](../schemas/sc_users.py#L131) → [UserActivationResponse](../schemas/sc_users.py#L73) |
+| [POST /users/{id}/activation/revalidate](ENDPOINTS.md#post-usersidactivationrevalidate) | Renovar a validade da mesma senha temporária. | Sem corpo JSON → [UserActivationResponse](../schemas/sc_users.py#L73) |
+| [POST /users/{id}/recovery](ENDPOINTS.md#post-usersidrecovery) | Autorizar recuperação de senha, cadastro facial ou ambos. | [UserRecovery](../schemas/sc_users.py#L147) → [UserActivationResponse](../schemas/sc_users.py#L73) |
 
 **Concluir quando:** Pedidos seguem o nível/equipe permitido; email não duplica; aprovação reserva as vagas N2/N3; desativação usa soft_delete e revoga acesso; reativação preserva activated_at da primeira ativação e exige nova senha/face. Consultas e autorização ignoram registros e vínculos excluídos; ações geram log sanitizado em audit_events.
 
 ## Etapa 4 - Entrada e segurança compartilhada
 
-| Endpoint | Para que serve |
-| --- | --- |
-| [GET /auth/csrf](ENDPOINTS.md#get-authcsrf) | Preparar a proteção das chamadas que alteram dados. |
-| [POST /auth/login](ENDPOINTS.md#post-authlogin) | Verificar email/senha e iniciar a etapa correta de autenticação. |
-| [GET /auth/flow](ENDPOINTS.md#get-authflow) | Consultar a etapa pendente após recarregar a página. |
-| [POST /auth/biometric/enroll](ENDPOINTS.md#post-authbiometricenroll) | Cadastrar a face somente com autorização. |
-| [POST /auth/biometric](ENDPOINTS.md#post-authbiometric) | Reconhecer a pessoa e verificar tentativa de imitação. |
-| [POST /auth/password/complete](ENDPOINTS.md#post-authpasswordcomplete) | Definir a senha definitiva e concluir ativação ou recuperação. |
-| [POST /auth/refresh](ENDPOINTS.md#post-authrefresh) | Renovar credenciais sem prolongar o limite da sessão. |
-| [POST /auth/logout](ENDPOINTS.md#post-authlogout) | Encerrar acesso no servidor e limpar os cookies. |
-| [GET /auth/me](ENDPOINTS.md#get-authme) | Informar quem está autenticado e suas permissões. |
-| [POST /auth/password-change/start](ENDPOINTS.md#post-authpassword-changestart-e-post-authpassword-changecomplete) | Iniciar troca de senha confirmando a senha atual. |
-| [POST /auth/password-change/complete](ENDPOINTS.md#post-authpassword-changestart-e-post-authpassword-changecomplete) | Concluir troca de senha e encerrar todas as sessões. |
+| Endpoint | Para que serve | Schemas de entrada → saída |
+| --- | --- | --- |
+| [GET /auth/csrf](ENDPOINTS.md#get-authcsrf) | Preparar a proteção das chamadas que alteram dados. | Sem corpo JSON → [CsrfResponse](../schemas/sc_sessions.py#L58) |
+| [POST /auth/login](ENDPOINTS.md#post-authlogin) | Verificar email/senha e iniciar a etapa correta de autenticação. | [LoginRequest](../schemas/sc_sessions.py#L12) → [AuthenticationStepResponse](../schemas/sc_authentication_attempts.py#L13) ou [SessionResponse](../schemas/sc_sessions.py#L28) |
+| [GET /auth/flow](ENDPOINTS.md#get-authflow) | Consultar a etapa pendente após recarregar a página. | Sem corpo JSON → [AuthenticationFlowResponse](../schemas/sc_authentication_attempts.py#L29) |
+| [POST /auth/biometric/enroll](ENDPOINTS.md#post-authbiometricenroll) | Cadastrar a face somente com autorização. | `multipart/form-data`: `frames: list[UploadFile]`; limites de upload aplicados na rota. → [AuthenticationStepResponse](../schemas/sc_authentication_attempts.py#L13) ou [SessionResponse](../schemas/sc_sessions.py#L28) |
+| [POST /auth/biometric](ENDPOINTS.md#post-authbiometric) | Reconhecer a pessoa e verificar tentativa de imitação. | `multipart/form-data`: `frames: list[UploadFile]`; limites de upload aplicados na rota. → [AuthenticationStepResponse](../schemas/sc_authentication_attempts.py#L13) ou [SessionResponse](../schemas/sc_sessions.py#L28) |
+| [POST /auth/password/complete](ENDPOINTS.md#post-authpasswordcomplete) | Definir a senha definitiva e concluir ativação ou recuperação. | [PasswordCompleteRequest](../schemas/sc_password_hashes.py#L11) → [SessionResponse](../schemas/sc_sessions.py#L28) |
+| [POST /auth/refresh](ENDPOINTS.md#post-authrefresh) | Renovar credenciais sem prolongar o limite da sessão. | Sem corpo JSON → [RefreshTokenResponse](../schemas/sc_refresh_tokens.py#L8) |
+| [POST /auth/logout](ENDPOINTS.md#post-authlogout) | Encerrar acesso no servidor e limpar os cookies. | Sem corpo JSON → 204, sem corpo e sem schema de resposta. |
+| [GET /auth/me](ENDPOINTS.md#get-authme) | Informar quem está autenticado e suas permissões. | Sem corpo JSON → [CurrentUserResponse](../schemas/sc_users.py#L209) |
+| [POST /auth/password-change/start](ENDPOINTS.md#post-authpassword-changestart-e-post-authpassword-changecomplete) | Iniciar troca de senha confirmando a senha atual. | [PasswordChangeStartRequest](../schemas/sc_password_hashes.py#L34) → [AuthenticationStepResponse](../schemas/sc_authentication_attempts.py#L13) |
+| [POST /auth/password-change/complete](ENDPOINTS.md#post-authpassword-changestart-e-post-authpassword-changecomplete) | Concluir troca de senha e encerrar todas as sessões. | [PasswordCompleteRequest](../schemas/sc_password_hashes.py#L11) → [LoginRequiredResponse](../schemas/sc_sessions.py#L45) |
 
 **Concluir quando:** Etapa incompleta não acessa o laboratório; sessão revogada não funciona; permissões, cookies e proteção das alterações são verificados no servidor.
 

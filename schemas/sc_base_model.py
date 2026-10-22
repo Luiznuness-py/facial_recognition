@@ -1,10 +1,28 @@
-from datetime import datetime
-from typing import Any, Generic, TypeVar
 from uuid import UUID
+from datetime import datetime
+from typing import Any, Generic, TypeVar, Annotated
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import (
+    BaseModel, 
+    ConfigDict, 
+    Field, 
+    StringConstraints,
+    EmailStr, 
+    BeforeValidator,
+)
 
+# O `T` é um espaço reservado para um tipo que você escolhe ao usar a classe
+# um exemplo disso é ApiResponse[ListResponse[UserResponse]].
+# Nesse caso, o campo `data` contém uma listagem cujos itens seguem UserResponse.
+# Assim, reutilizamos ApiResponse em diferentes rotas, definindo em cada
+# uma o tipo e a estrutura esperados para o retorno.
 T = TypeVar("T")
+
+Reason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1500)]
+NormalizedEmail = Annotated[
+    EmailStr,
+    BeforeValidator(lambda value: value.strip().lower() if isinstance(value, str) else value),
+]
 
 class BaseSchema(BaseModel):
     """Compartilha a configuração de validação dos schemas da aplicação.

@@ -25,16 +25,21 @@ Todos os endereços têm o prefixo `/api/v1`. Os contratos abaixo detalham quem 
 
 ## 1. Como chamamos a API
 
-Todos os caminhos abaixo começam com `/api/v1`. Listas recebem `limit` (padrão 20, máximo 100), `offset` (padrão 0) e filtros descritos; respondem `{items,total,limit,offset}`. Total respeita os mesmos acessos. IDs são UUIDs; datas UTC com fuso; campo desconhecido é rejeitado. Campos vazios de motivo/texto obrigatório são inválidos.
+Todos os caminhos abaixo começam com `/api/v1`. Listas paginadas recebem `page` (padrão 1, mínimo 1), `per_page` (padrão 20, de 1 a 100) e os filtros descritos; respondem `{items,total}`. O serviço calcula o deslocamento por `(page - 1) * per_page`. Catálogos explicitamente sem paginação retornam uma lista simples. Total respeita os mesmos acessos. IDs são UUIDs; datas UTC com fuso; campo desconhecido é rejeitado. Campos vazios de motivo/texto obrigatório são inválidos.
 
 Toda rota privada usa Access e conta/sessão habilitada, salvo as etapas de autenticação explicitadas. Toda alteração usa CSRF. A seção abaixo diz por que existe, quem usa, entrada, conferência e resposta de cada rota.
 
+As saídas indicadas abaixo representam o campo `data` de [ApiResponse](../schemas/sc_base_model.py#L126). Em sucesso, use `success=true` e `error=null`; em falha, `success=false` e `data=null`. Respostas 204 não usam envelope. [ApiError](../schemas/sc_base_model.py#L108) define o erro. Essa coerência deve ser aplicada pelas rotas; a classe base não a impõe automaticamente.
+
+Os exemplos antigos resumidos nas tabelas ilustram partes de `data`, não objetos completos para copiar. As classes vinculadas são a referência dos campos obrigatórios. UUIDs de caminho, cookies e cabeçalhos são validados nas dependências da rota; não são corpos JSON. Schemas `Query` e `PaginationParams` devem ser usados como parâmetros de consulta.
+
 ### Erros
 
-401: precisa autenticar; 403: ação não permitida; 404: não existe ou não está no seu escopo; 409: duplicidade ou estado incompatível; 413: upload grande; 422: campo inválido; 429: limite; 503: indisponível. Corpo de erro `{error:{code,message,request_id}}`; erro de campo pode acrescentar lista `fields`, sem valores secretos. Respostas selecionam campos explicitamente. Nenhuma resposta contém senha, hash, vetor ou token de autenticação completo. Autoria, datas, soft_delete e campos do log são definidos pelo backend, sem aceitar esses campos livremente em Create/Update. Sessão normal exige users.status=ACTIVE, users.soft_delete=FALSE e etapas obrigatórias concluídas; usuários excluídos não recebem credenciais nem acesso privado. Papéis, permissões e vínculos excluídos não concedem acesso.
-
+401: precisa autenticar; 403: ação não permitida; 404: não existe ou não está no seu escopo; 409: duplicidade ou estado incompatível; 413: upload grande; 422: campo inválido; 429: limite; 503: indisponível. Corpo de erro `{"success":false,"data":null,"error":{"message":"...","details":{"code":"...","request_id":"..."}}}`; erro de campo pode acrescentar `fields` em `details`, sem valores secretos. O tratamento de exceções deve montar esse envelope. Respostas selecionam campos explicitamente. Nenhuma resposta contém senha, hash, vetor ou token de autenticação completo. Autoria, datas, soft_delete e campos do log são definidos pelo backend, sem aceitar esses campos livremente em Create/Update. Sessão normal exige users.status=ACTIVE, users.soft_delete=FALSE e etapas obrigatórias concluídas; usuários excluídos não recebem credenciais nem acesso privado. Papéis, permissões e vínculos excluídos não concedem acesso.
 
 ### `POST /auth/login`
+
+- **Schemas — `POST /auth/login`:** entrada (corpo): [LoginRequest](../schemas/sc_sessions.py#L12); saída: [AuthenticationStepResponse](../schemas/sc_authentication_attempts.py#L13) ou [SessionResponse](../schemas/sc_sessions.py#L28)
 
 | Método | Path | Descrição | Parm. Obrigatórios | Exemplo de Resposta |
 |--------|------|-----------|------------------|----------------------|
@@ -49,6 +54,8 @@ Confere email e senha e escolhe a próxima etapa. Existe para iniciar o acesso s
 
 ### `POST /auth/biometric/enroll`
 
+- **Schemas — `POST /auth/biometric/enroll`:** entrada (corpo): `multipart/form-data`: `frames: list[UploadFile]`; limites de upload aplicados na rota.; saída: [AuthenticationStepResponse](../schemas/sc_authentication_attempts.py#L13) ou [SessionResponse](../schemas/sc_sessions.py#L28)
+
 | Método | Path | Descrição | Parm. Obrigatórios | Exemplo de Resposta |
 |--------|------|-----------|------------------|----------------------|
 | `POST` | `/auth/biometric/enroll` | Cadastra a face quando existe autorização de primeiro acesso ou recuperação | Cookie HTTPOnly + `frames` (imagens) | `{next_step: "CHANGE_PASSWORD", expires_in: 300}` |
@@ -62,9 +69,11 @@ Cadastra a face quando existe autorização de primeiro acesso ou recuperação.
 
 ### `POST /auth/biometric`
 
+- **Schemas — `POST /auth/biometric`:** entrada (corpo): `multipart/form-data`: `frames: list[UploadFile]`; limites de upload aplicados na rota.; saída: [AuthenticationStepResponse](../schemas/sc_authentication_attempts.py#L13) ou [SessionResponse](../schemas/sc_sessions.py#L28)
+
 | Método | Path | Descrição | Parm. Obrigatórios | Exemplo de Resposta |
 |--------|------|-----------|------------------|----------------------|
-| `POST` | `/auth/biometric` | Confirma a identidade e a presença real da pessoa esperada | Cookie HTTPOnly + `frames` | `{next_step: "LOGIN", expires_in: 300}` |
+| `POST` | `/auth/biometric` | Confirma a identidade e a presença real da pessoa esperada | Cookie HTTPOnly + `frames` | `{next_step: "SESSION", expires_in: 86400, user: {...}}` |
 
 Confirma a identidade e a presença real da pessoa esperada. É a segunda etapa de acesso ou a prova exigida para mudar senha.
 
@@ -75,9 +84,11 @@ Confirma a identidade e a presença real da pessoa esperada. É a segunda etapa 
 
 ### `POST /auth/password/complete`
 
+- **Schemas — `POST /auth/password/complete`:** entrada (corpo): [PasswordCompleteRequest](../schemas/sc_password_hashes.py#L11); saída: [SessionResponse](../schemas/sc_sessions.py#L28)
+
 | Método | Path | Descrição | Parm. Obrigatórios | Exemplo de Resposta |
 |--------|------|-----------|------------------|----------------------|
-| `POST` | `/auth/password/complete` | Finaliza a ativação ou recuperação com uma senha definitiva | Cookie HTTPOnly + `new_password,password_confirmation` | `{next_step: "LOGIN", expires_in: 300}` |
+| `POST` | `/auth/password/complete` | Finaliza a ativação ou recuperação com uma senha definitiva | Cookie HTTPOnly + `new_password,password_confirmation` | `{next_step: "SESSION", expires_in: 86400, user: {...}}` |
 
 Finaliza a ativação ou recuperação com uma senha definitiva. Só então libera a sessão normal.
 
@@ -88,9 +99,11 @@ Finaliza a ativação ou recuperação com uma senha definitiva. Só então libe
 
 ### `POST /auth/refresh`
 
+- **Schemas — `POST /auth/refresh`:** entrada: Sem corpo JSON; saída: [RefreshTokenResponse](../schemas/sc_refresh_tokens.py#L8)
+
 | Método | Path | Descrição | Parm. Obrigatórios | Exemplo de Resposta |
 |--------|------|-----------|------------------|----------------------|
-| `POST` | `/auth/refresh` | Renova os cookies quando o access vence, evitando pedir biometria a cada quinze minutos, sem aumentar as 24 horas da sessão. | Cookie HttpOnly + CSRF | `{validade: "2026-01-01T00:00:00Z"}` |
+| `POST` | `/auth/refresh` | Renova os cookies quando o access vence, evitando pedir biometria a cada quinze minutos, sem aumentar as 24 horas da sessão. | Cookie HttpOnly + CSRF | `{expires_in: 900}` |
 
 Renova os cookies quando o access vence, evitando pedir biometria a cada quinze minutos, sem aumentar as 24 horas da sessão.
 
@@ -101,9 +114,11 @@ Renova os cookies quando o access vence, evitando pedir biometria a cada quinze 
 
 ### `POST /auth/logout`
 
+- **Schemas — `POST /auth/logout`:** entrada: Sem corpo JSON; saída: 204, sem corpo e sem schema de resposta.
+
 | Método | Path | Descrição | Parm. Obrigatórios | Exemplo de Resposta |
 |--------|------|-----------|------------------|----------------------|
-| `POST` | `/auth/logout` | Encerra o contexto de acesso e limpa os cookies para que Sair tenha efeito no servidor, não apenas na tela. | Sessão, refresh válido ou JWT restrito, CSRF | `{"status":"success"}` |
+| `POST` | `/auth/logout` | Encerra o contexto de acesso e limpa os cookies para que Sair tenha efeito no servidor, não apenas na tela. | Sessão, refresh válido ou JWT restrito, CSRF | 204, sem corpo |
 
 Encerra o contexto de acesso e limpa os cookies para que Sair tenha efeito no servidor, não apenas na tela.
 
@@ -114,6 +129,8 @@ Encerra o contexto de acesso e limpa os cookies para que Sair tenha efeito no se
 
 ### `GET /auth/me`
 
+- **Schemas — `GET /auth/me`:** entrada: Sem corpo JSON; saída: [CurrentUserResponse](../schemas/sc_users.py#L209)
+
 Diz à tela quem está autenticado e quais menus mostrar. Não é uma autorização para confiar apenas no frontend.
 
 - Quem/credencial: Conforme a credencial e a etapa descritas abaixo.
@@ -122,6 +139,8 @@ Diz à tela quem está autenticado e quais menus mostrar. Não é uma autorizaç
 - Responde: 200: `id,name,email,role,team,permissions` para orientar UI; UI não substitui autorização.
 
 ### `POST /access-requests`
+
+- **Schemas — `POST /access-requests`:** entrada (corpo): [AccessRequestCreate](../schemas/sc_access_requests.py#L18); saída: [AccessRequestResponse](../schemas/sc_access_requests.py#L38)
 
 | Método | Path | Descrição | Parm. Obrigatórios | Exemplo de Resposta |
 |--------|------|-----------|------------------|----------------------|
@@ -136,9 +155,11 @@ Permite que N2/N3 solicitem acesso e que ADMIN cadastre diretamente, sem abrir c
 
 ### `GET /access-requests`
 
+- **Schemas — `GET /access-requests`:** entrada (consulta): [AccessRequestQuery](../schemas/sc_access_requests.py#L79); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [AccessRequestResponse](../schemas/sc_access_requests.py#L38)
+
 | Método | Path | Descrição | Parm. Obrigatórios | Exemplo de Resposta |
 |--------|------|-----------|------------------|----------------------|
-| `GET` | `/access-requests` | Alimenta a lista de solicitações que o solicitante acompanha ou ADMIN decide. | Paginação/status | `{"items":[{"id":"123e4567-e89b-12d3-a456-426614174000","status":"PENDING"}],"total":1,"limit":20,"offset":0}` |
+| `GET` | `/access-requests` | Alimenta a lista de solicitações que o solicitante acompanha ou ADMIN decide. | Paginação/status | `{"items":[{"id":"123e4567-e89b-12d3-a456-426614174000","status":"PENDING"}],"total":1}` |
 
 Alimenta a lista de solicitações que o solicitante acompanha ou ADMIN decide.
 
@@ -149,6 +170,8 @@ Alimenta a lista de solicitações que o solicitante acompanha ou ADMIN decide.
 
 ### `GET /access-requests/{id}`
 
+- **Schemas — `GET /access-requests/{id}`:** entrada: Sem corpo JSON; saída: [AccessRequestResponse](../schemas/sc_access_requests.py#L38)
+
 Mostra os dados e a decisão de um pedido autorizado, inclusive o motivo de rejeição.
 
 - Quem/credencial: `accounts.request.read`
@@ -157,6 +180,8 @@ Mostra os dados e a decisão de um pedido autorizado, inclusive o motivo de reje
 - Responde: 200: pedido, decisão e motivo.
 
 ### `POST /access-requests/{id}/approve`
+
+- **Schemas — `POST /access-requests/{id}/approve`:** entrada: Sem corpo JSON; saída: [AccessRequestResponse](../schemas/sc_access_requests.py#L38)
 
 Cria a conta aprovada e reserva a posição N2/N3, iniciando a validade da temporária.
 
@@ -167,6 +192,8 @@ Cria a conta aprovada e reserva a posição N2/N3, iniciando a validade da tempo
 
 ### `POST /access-requests/{id}/reject`
 
+- **Schemas — `POST /access-requests/{id}/reject`:** entrada (corpo): [AccessRequestReject](../schemas/sc_access_requests.py#L66); saída: [AccessRequestResponse](../schemas/sc_access_requests.py#L38)
+
 Encerra o pedido com explicação, sem criar conta nem manter seu hash temporário.
 
 - Quem/credencial: `accounts.approve`: ADMIN
@@ -175,6 +202,9 @@ Encerra o pedido com explicação, sem criar conta nem manter seu hash temporár
 - Responde: 200: solicitação rejeitada.
 
 ### `GET /users` e `GET /users/{id}`
+
+- **Schemas — `GET /users`:** entrada (consulta): [UserQuery](../schemas/sc_users.py#L175); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [UserResponse](../schemas/sc_users.py#L46)
+- **Schemas — `GET /users/{id}`:** entrada: Sem corpo JSON; saída: [UserResponse](../schemas/sc_users.py#L46)
 
 Permite ao administrador localizar e consultar contas sem ler faces ou conteúdo do laboratório.
 
@@ -185,6 +215,8 @@ Permite ao administrador localizar e consultar contas sem ler faces ou conteúdo
 
 ### `PATCH /users/{id}`
 
+- **Schemas — `PATCH /users/{id}`:** entrada (corpo): [UserUpdate](../schemas/sc_users.py#L88); saída: [UserResponse](../schemas/sc_users.py#L46)
+
 Permite ao administrador corrigir dados institucionais e papel/grupo mantendo a identidade e a história.
 
 - Quem/credencial: `accounts.manage`: ADMIN
@@ -193,6 +225,8 @@ Permite ao administrador corrigir dados institucionais e papel/grupo mantendo a 
 - Responde: 200: conta atualizada; 409 se email/vaga ocupados.
 
 ### `POST /users/{id}/deactivate`
+
+- **Schemas — `POST /users/{id}/deactivate`:** entrada (corpo): [UserDeactivate](../schemas/sc_users.py#L118); saída: [UserResponse](../schemas/sc_users.py#L46)
 
 Bloqueia uma pessoa e suas credenciais sem apagar registros anteriores.
 
@@ -203,6 +237,8 @@ Bloqueia uma pessoa e suas credenciais sem apagar registros anteriores.
 
 ### `POST /users/{id}/reactivate`
 
+- **Schemas — `POST /users/{id}/reactivate`:** entrada (corpo): [UserReactivate](../schemas/sc_users.py#L131); saída: [UserActivationResponse](../schemas/sc_users.py#L73)
+
 Permite voltar ao sistema com nova senha e biometria, sem criar outra identidade ou perder história.
 
 - Quem/credencial: `accounts.manage`: ADMIN
@@ -211,6 +247,8 @@ Permite voltar ao sistema com nova senha e biometria, sem criar outra identidade
 - Responde: 200: PENDING_ACTIVATION, validade e etapas, sem senha/hash; 409 se vaga ocupada.
 
 ### `POST /users/{id}/activation/revalidate`
+
+- **Schemas — `POST /users/{id}/activation/revalidate`:** entrada: Sem corpo JSON; saída: [UserActivationResponse](../schemas/sc_users.py#L73)
 
 Renova a mesma senha temporária quando a pessoa não terminou a ativação dentro de 24 horas.
 
@@ -221,6 +259,8 @@ Renova a mesma senha temporária quando a pessoa não terminou a ativação dent
 
 ### `POST /users/{id}/recovery`
 
+- **Schemas — `POST /users/{id}/recovery`:** entrada (corpo): [UserRecovery](../schemas/sc_users.py#L147); saída: [UserActivationResponse](../schemas/sc_users.py#L73)
+
 Autoriza a recuperação de senha, rosto ou ambos. Separa recuperação administrada de um cadastro facial livre.
 
 - Quem/credencial: `accounts.manage`: ADMIN
@@ -229,6 +269,8 @@ Autoriza a recuperação de senha, rosto ou ambos. Separa recuperação administ
 - Responde: 200: requisitos e validade, sem senha.
 
 ### `GET /teams`
+
+- **Schemas — `GET /teams`:** entrada (consulta): [PaginationParams](../schemas/sc_base_model.py#L73); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [TeamResponse](../schemas/sc_teams.py#L8)
 
 Fornece os grupos para seleção autorizada em formulários de conta; não transfere agentes entre grupos.
 
@@ -239,6 +281,8 @@ Fornece os grupos para seleção autorizada em formulários de conta; não trans
 
 ### `POST /biological-agents`
 
+- **Schemas — `POST /biological-agents`:** entrada (corpo): [BiologicalAgentCreate](../schemas/sc_biological_agents.py#L14); saída: [BiologicalAgentCreateResponse](../schemas/sc_biological_agents.py#L184)
+
 Registra a amostra e cria a primeira tarefa do N1, sem misturar o cadastro com a conclusão científica.
 
 - Quem/credencial: `agents.create`: N1
@@ -247,6 +291,8 @@ Registra a amostra e cria a primeira tarefa do N1, sem misturar o cadastro com a
 - Responde: 201: agente e primeira validação.
 
 ### `GET /biological-agents`
+
+- **Schemas — `GET /biological-agents`:** entrada (consulta): [BiologicalAgentQuery](../schemas/sc_biological_agents.py#L199); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [BiologicalAgentResponse](../schemas/sc_biological_agents.py#L123)
 
 Monta a lista de agentes ativos/inativos que a pessoa pode consultar.
 
@@ -257,6 +303,8 @@ Monta a lista de agentes ativos/inativos que a pessoa pode consultar.
 
 ### `GET /biological-agents/{id}`
 
+- **Schemas — `GET /biological-agents/{id}`:** entrada: Sem corpo JSON; saída: [BiologicalAgentResponse](../schemas/sc_biological_agents.py#L123)
+
 Abre o cadastro de um agente, mantendo separados os cards das validações.
 
 - Quem/credencial: `agents.read`: N1/N2
@@ -265,6 +313,8 @@ Abre o cadastro de um agente, mantendo separados os cards das validações.
 - Responde: 200: cadastro e situação geral; não inclui todas as validações por existir vínculo com uma.
 
 ### `GET /biological-agents/{id}/validations`
+
+- **Schemas — `GET /biological-agents/{id}/validations`:** entrada (consulta): [ValidationQuery](../schemas/sc_validations.py#L227); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [ValidationCardResponse](../schemas/sc_validations.py#L103)
 
 Monta os cards da página do agente, incluindo apenas tarefas que o usuário pode ler.
 
@@ -275,6 +325,8 @@ Monta os cards da página do agente, incluindo apenas tarefas que o usuário pod
 
 ### `POST /biological-agents/{id}/validations`
 
+- **Schemas — `POST /biological-agents/{id}/validations`:** entrada (corpo): [ValidationCreate](../schemas/sc_validations.py#L21); saída: [ValidationCreatedResponse](../schemas/sc_validations.py#L240)
+
 Permite ao supervisor atribuir outra investigação do mesmo agente quando a anterior terminou.
 
 - Quem/credencial: `validations.create`: N2
@@ -283,6 +335,8 @@ Permite ao supervisor atribuir outra investigação do mesmo agente quando a ant
 - Responde: 201: nova tarefa.
 
 ### `GET /validations/{id}`
+
+- **Schemas — `GET /validations/{id}`:** entrada: Sem corpo JSON; saída: [ValidationResponse](../schemas/sc_validations.py#L131)
 
 Mostra o formulário científico, equipe e história autorizada de uma tarefa.
 
@@ -293,6 +347,8 @@ Mostra o formulário científico, equipe e história autorizada de uma tarefa.
 
 ### `PATCH /validations/{id}/analysis`
 
+- **Schemas — `PATCH /validations/{id}/analysis`:** entrada (corpo): [ValidationAnalysisUpdate](../schemas/sc_validations.py#L36); saída: [ValidationResponse](../schemas/sc_validations.py#L131)
+
 Salva o trabalho parcial ou corrigido do único responsável; não envia automaticamente para revisão.
 
 - Quem/credencial: `analyses.write`: somente N1 responsável
@@ -301,6 +357,8 @@ Salva o trabalho parcial ou corrigido do único responsável; não envia automat
 - Responde: 200: análise atual.
 
 ### `POST /validations/{id}/submit`
+
+- **Schemas — `POST /validations/{id}/submit`:** entrada: Sem corpo JSON; saída: [ValidationSubmitResponse](../schemas/sc_validations.py#L171)
 
 Entrega a análise completa ao supervisor e preserva uma cópia com a equipe daquele momento.
 
@@ -311,6 +369,8 @@ Entrega a análise completa ao supervisor e preserva uma cópia com a equipe daq
 
 ### `GET /validations/{id}/participants`
 
+- **Schemas — `GET /validations/{id}/participants`:** entrada: Sem corpo JSON; saída: `list` de [ValidationParticipantResponse](../schemas/sc_validation_participants.py#L24) (catálogo sem paginação).
+
 Mostra quem integra a tarefa atual sem expor o diretório inteiro de usuários.
 
 - Quem/credencial: `validations.read`
@@ -319,6 +379,8 @@ Mostra quem integra a tarefa atual sem expor o diretório inteiro de usuários.
 - Responde: 200: participantes mínimos, sem diretório global.
 
 ### `GET /validations/{id}/participant-candidates`
+
+- **Schemas — `GET /validations/{id}/participant-candidates`:** entrada (consulta): [UserCandidateQuery](../schemas/sc_users.py#L223); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [UserSummary](../schemas/sc_users.py#L31)
 
 Fornece os N1 do grupo que podem ser convidados, sem mostrar pessoas de outro grupo.
 
@@ -329,6 +391,8 @@ Fornece os N1 do grupo que podem ser convidados, sem mostrar pessoas de outro gr
 
 ### `POST /validations/{id}/participants`
 
+- **Schemas — `POST /validations/{id}/participants`:** entrada (corpo): [ValidationParticipantAdd](../schemas/sc_validation_participants.py#L10); saída: [ValidationParticipantResponse](../schemas/sc_validation_participants.py#L24)
+
 Compartilha a investigação com um N1 apenas em leitura.
 
 - Quem/credencial: `validations.share`: N1 responsável ou N2 supervisor do grupo
@@ -337,6 +401,8 @@ Compartilha a investigação com um N1 apenas em leitura.
 - Responde: 201: compartilhamento em leitura.
 
 ### `POST /validations/{id}/return`
+
+- **Schemas — `POST /validations/{id}/return`:** entrada (corpo): [ValidationReturn](../schemas/sc_validations.py#L77); saída: [ValidationReturnResponse](../schemas/sc_validations.py#L188)
 
 Devolve a entrega ao responsável com o que precisa ser corrigido.
 
@@ -347,6 +413,8 @@ Devolve a entrega ao responsável com o que precisa ser corrigido.
 
 ### `POST /validations/{id}/close`
 
+- **Schemas — `POST /validations/{id}/close`:** entrada (corpo): [ValidationClose](../schemas/sc_validations.py#L90); saída: [ValidationCloseResponse](../schemas/sc_validations.py#L206)
+
 Permite ao supervisor encerrar uma entrega durante a revisão, explicando o motivo à equipe.
 
 - Quem/credencial: `validations.review`: N2 do grupo
@@ -355,6 +423,8 @@ Permite ao supervisor encerrar uma entrega durante a revisão, explicando o moti
 - Responde: 200: estado, motivo e autoria/data do encerramento.
 
 ### `POST /validations/{id}/report/send`
+
+- **Schemas — `POST /validations/{id}/report/send`:** entrada (corpo): [VaultSend](../schemas/sc_vault.py#L19); saída: [VaultSendResponse](../schemas/sc_vault.py#L46)
 
 Sela a conclusão do supervisor e a ficha pronta para divulgação, entregando-as ao ministro.
 
@@ -365,6 +435,8 @@ Sela a conclusão do supervisor e a ficha pronta para divulgação, entregando-a
 
 ### `GET /reports/sent`
 
+- **Schemas — `GET /reports/sent`:** entrada (consulta): [SentReportQuery](../schemas/sc_vault.py#L212); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [SentReportResponse](../schemas/sc_vault.py#L82)
+
 Permite ao supervisor acompanhar o destino do envio e receber pedidos de nova investigação sem ler o cofre.
 
 - Quem/credencial: `reports.read`: N2 supervisor
@@ -373,6 +445,8 @@ Permite ao supervisor acompanhar o destino do envio e receber pedidos de nova in
 - Responde: 200: cards com `validation_id,title,agent:{id,code,provisional_label},decision_status,protocol` — campos escolhidos para a resposta.
 
 ### `GET /vault/dossiers`
+
+- **Schemas — `GET /vault/dossiers`:** entrada (consulta): [VaultQuery](../schemas/sc_vault.py#L197); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [VaultSummary](../schemas/sc_vault.py#L105)
 
 Monta a lista do cofre exclusivo do ministro.
 
@@ -383,6 +457,8 @@ Monta a lista do cofre exclusivo do ministro.
 
 ### `GET /vault/dossiers/{id}`
 
+- **Schemas — `GET /vault/dossiers/{id}`:** entrada: Sem corpo JSON; saída: [VaultResponse](../schemas/sc_vault.py#L127)
+
 Abre o relatório original e a prévia da notícia para decisão do ministro.
 
 - Quem/credencial: `vault.read`: N3
@@ -391,6 +467,8 @@ Abre o relatório original e a prévia da notícia para decisão do ministro.
 - Responde: 200: conteúdo autorizado e situação de divulgação.
 
 ### `POST /vault/dossiers/{id}/publish`
+
+- **Schemas — `POST /vault/dossiers/{id}/publish`:** entrada: Sem corpo JSON; saída: [PublicationPublishResponse](../schemas/sc_publications.py#L71)
 
 Publica a ficha preparada sem expor o relatório interno e libera outra tarefa.
 
@@ -401,6 +479,8 @@ Publica a ficha preparada sem expor o relatório interno e libera outra tarefa.
 
 ### `POST /vault/dossiers/{id}/keep-restricted`
 
+- **Schemas — `POST /vault/dossiers/{id}/keep-restricted`:** entrada (corpo): [VaultDecisionReason](../schemas/sc_vault.py#L164); saída: [VaultDecisionResponse](../schemas/sc_vault.py#L178)
+
 Registra a decisão de manter o conteúdo interno e encerra a tarefa correspondente.
 
 - Quem/credencial: `vault.decide`: N3
@@ -409,6 +489,9 @@ Registra a decisão de manter o conteúdo interno e encerra a tarefa corresponde
 - Responde: 200: decisão, validação encerrada e situação.
 
 ### `GET /publications` e `GET /publications/{id}`
+
+- **Schemas — `GET /publications`:** entrada (consulta): [PublicationQuery](../schemas/sc_publications.py#L118); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [PublicationResponse](../schemas/sc_publications.py#L36)
+- **Schemas — `GET /publications/{id}`:** entrada: Sem corpo JSON; saída: [PublicationResponse](../schemas/sc_publications.py#L36)
 
 Permite ao ministro acompanhar notícias e retiradas, sem confundir essa lista com o cofre.
 
@@ -419,6 +502,8 @@ Permite ao ministro acompanhar notícias e retiradas, sem confundir essa lista c
 
 ### `POST /publications/{id}/withdraw`
 
+- **Schemas — `POST /publications/{id}/withdraw`:** entrada (corpo): [PublicationWithdraw](../schemas/sc_publications.py#L58); saída: [PublicationWithdrawResponse](../schemas/sc_publications.py#L88)
+
 Tira a notícia da consulta pública, preservando conteúdo e motivo reservado no histórico.
 
 - Quem/credencial: `publications.publish`: N3
@@ -427,6 +512,8 @@ Tira a notícia da consulta pública, preservando conteúdo e motivo reservado n
 - Responde: 200: WITHDRAWN.
 
 ### `GET /public/publications`
+
+- **Schemas — `GET /public/publications`:** entrada (consulta): [PublicPublicationQuery](../schemas/sc_publications.py#L105); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [PublicPublicationResponse](../schemas/sc_publications.py#L13)
 
 Fornece a lista de notícias vigentes para quem não está autenticado.
 
@@ -437,6 +524,8 @@ Fornece a lista de notícias vigentes para quem não está autenticado.
 
 ### `GET /public/publications/{id}`
 
+- **Schemas — `GET /public/publications/{id}`:** entrada: Sem corpo JSON; saída: [PublicPublicationResponse](../schemas/sc_publications.py#L13)
+
 Mostra uma notícia autorizada em layout fixo, sem consulta ao cofre.
 
 - Quem/credencial: Público
@@ -445,6 +534,8 @@ Mostra uma notícia autorizada em layout fixo, sem consulta ao cofre.
 - Responde: 200: `id,title,subtitle?,risk_category,body,published_at`.
 
 ### `GET /admin/audit-events`
+
+- **Schemas — `GET /admin/audit-events`:** entrada (consulta): [AuditEventQuery](../schemas/sc_audit_events.py#L37); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [AuditEventResponse](../schemas/sc_audit_events.py#L12)
 
 Permite revisar eventos administrativos sem revelar conteúdo científico ou motivos exclusivos do ministro.
 
@@ -455,6 +546,8 @@ Permite revisar eventos administrativos sem revelar conteúdo científico ou mot
 
 ### `GET /admin/roles`
 
+- **Schemas — `GET /admin/roles`:** entrada: Sem corpo JSON; saída: `list` de [RoleResponse](../schemas/sc_roles.py#L12) (catálogo sem paginação).
+
 Mostra o catálogo de papéis e suas permissões; não cria um editor de permissões.
 
 - Quem/credencial: `authorization.read`: ADMIN
@@ -463,6 +556,8 @@ Mostra o catálogo de papéis e suas permissões; não cria um editor de permiss
 - Responde: 200: papéis e permissões associadas.
 
 ### `GET /admin/permissions`
+
+- **Schemas — `GET /admin/permissions`:** entrada: Sem corpo JSON; saída: `list` de [PermissionResponse](../schemas/sc_permissions.py#L8) (catálogo sem paginação).
 
 Mostra as ações conhecidas pela autorização central.
 
@@ -473,6 +568,8 @@ Mostra as ações conhecidas pela autorização central.
 
 ### `GET /health`
 
+- **Schemas — `GET /health`:** entrada: Sem corpo JSON; saída: `dict[str, str]`, com `{"status":"ok"}`.
+
 Indica que o processo responde, sem revelar banco, segredos ou diagnóstico interno.
 
 - Quem/credencial: Pública
@@ -482,15 +579,22 @@ Indica que o processo responde, sem revelar banco, segredos ou diagnóstico inte
 
 ### `GET /auth/csrf`
 
+- **Schemas — `GET /auth/csrf`:** entrada: Sem corpo JSON; saída: [CsrfResponse](../schemas/sc_sessions.py#L58)
+
 Prepara a proteção contra chamadas forjadas antes de login ou operações privadas. Rota pública de preparação, sem acesso a dados.
 
 Recebe os cookies atuais. Emite contexto aleatório HttpOnly quando anônimo e devolve `{csrf_token}` assinado, vinculado ao contexto anônimo, tentativa ou sessão válida. JavaScript guarda esse token de proteção só em memória e envia `X-CSRF-Token` nas alterações. Não é token de autenticação. Se contexto inválido, não tratá-lo como prova autenticada; criar contexto anônimo. Não aceita chamada cross-site nem habilita CORS de terceiros. Retorna 200; não renova a sessão.
 
 ### `GET /auth/flow`
 
+- **Schemas — `GET /auth/flow`:** entrada: Sem corpo JSON; saída: [AuthenticationFlowResponse](../schemas/sc_authentication_attempts.py#L29)
+
 Ao recarregar a página de face/senha, informa a etapa ainda permitida, sem prolongá-la. Usa cookie restrito, valida a tentativa e retorna `{operation,next_step,expires_in}`; expirado retorna 401.
 
 ### `POST /auth/password-change/start` e `POST /auth/password-change/complete`
+
+- **Schemas — `POST /auth/password-change/start`:** entrada (corpo): [PasswordChangeStartRequest](../schemas/sc_password_hashes.py#L34); saída: [AuthenticationStepResponse](../schemas/sc_authentication_attempts.py#L13)
+- **Schemas — `POST /auth/password-change/complete`:** entrada (corpo): [PasswordCompleteRequest](../schemas/sc_password_hashes.py#L11); saída: [LoginRequiredResponse](../schemas/sc_sessions.py#L45)
 
 Start: sessão válida, CSRF e `current_password`. Confere hash e cria tentativa PASSWORD_CHANGE ligada à sessão: VERIFY_FACE para N1/N2/N3; CHANGE_PASSWORD para ADMIN. Retorna 200 e próximo passo em cookie restrito. Não revoga a sessão apenas por iniciar.
 
@@ -498,25 +602,37 @@ Complete: sessão iniciadora ainda válida, cookie CHANGE_PASSWORD da mesma oper
 
 ### `PATCH /biological-agents/{id}`
 
+- **Schemas — `PATCH /biological-agents/{id}`:** entrada (corpo): [BiologicalAgentUpdate](../schemas/sc_biological_agents.py#L49); saída: [BiologicalAgentResponse](../schemas/sc_biological_agents.py#L123)
+
 Permite corrigir cadastro antes do primeiro envio. Criador N1 com vínculo autorizado ou N2 do grupo; Access e CSRF. Recebe qualquer subconjunto dos sete campos cadastrais; campos enviados devem cumprir limites. Confere que não existe entrega anterior do agente e grava alteração/auditoria. Retorna 200 com cadastro; após primeira entrega retorna 409.
 
 ### `PATCH /biological-agents/{id}/status`
+
+- **Schemas — `PATCH /biological-agents/{id}/status`:** entrada (corpo): [BiologicalAgentStatusUpdate](../schemas/sc_biological_agents.py#L93); saída: [BiologicalAgentStatusResponse](../schemas/sc_biological_agents.py#L214)
 
 N2 do grupo ativa/inativa o agente. Recebe `{status:"ACTIVE"}` ou `{status:"INACTIVE"}` com Access e CSRF. Desativar confere ausência de tarefa em andamento, em transação. Retorna 200 `{id,status}`; se tarefa aberta, 409. Não modifica publicação/histórico.
 
 ### `GET /biological-agents/{id}/responsible-candidates`
 
+- **Schemas — `GET /biological-agents/{id}/responsible-candidates`:** entrada (consulta): [UserCandidateQuery](../schemas/sc_users.py#L223); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [UserSummary](../schemas/sc_users.py#L31)
+
 N2 precisa escolher responsável para próxima tarefa sem consultar diretório de outro grupo. Access, permissão de criar validação e grupo do agente. Recebe busca/paginação, devolve 200 com N1 ativos do grupo, apenas ID/nome; não exige existir validação nova para consultar candidatos.
 
 ### `DELETE /validations/{id}/participants/{user_id}`
+
+- **Schemas — `DELETE /validations/{id}/participants/{user_id}`:** entrada: Sem corpo JSON; saída: 204, sem corpo e sem schema de resposta.
 
 N2 do grupo remove um colaborador em OPEN/RETURNED. Access e CSRF, sem corpo. Não remove o responsável; marca soft_delete=TRUE no vínculo atual, guarda auditoria e não apaga entregas anteriores. Retorna 204; vínculo ausente retorna 404.
 
 ### `PATCH /validations/{id}/responsible`
 
+- **Schemas — `PATCH /validations/{id}/responsible`:** entrada (corpo): [ValidationResponsibleUpdate](../schemas/sc_validations.py#L64); saída: [ValidationResponsibleResponse](../schemas/sc_validations.py#L255)
+
 N2 do grupo troca responsável em OPEN/RETURNED. Recebe `{responsible_user_id}`. Confere N1 ativo do grupo, mantém anterior como colaborador e torna novo o único editor, sem duplicar vínculos. Retorna 200 com responsável e participantes; entregas antigas não mudam.
 
 ### `POST /vault/dossiers/{id}/request-validation`
+
+- **Schemas — `POST /vault/dossiers/{id}/request-validation`:** entrada (corpo): [VaultDecisionReason](../schemas/sc_vault.py#L164); saída: [VaultDecisionResponse](../schemas/sc_vault.py#L178)
 
 N3 pede outra investigação, não edição do original. Access, CSRF, `vault.decide` e `{reason}` obrigatório até 1.500. Só dossiê aguardando decisão e validação REPORTED. Registra pedido e fecha a anterior numa transação. Retorna 200 com situação NEW_VALIDATION_REQUESTED e validação CLOSED. N2 do grupo vê motivo no card; outro perfil não ganha o cofre.
 
@@ -619,7 +735,7 @@ Salvar rascunho altera somente campos enviados. Repetir envio de uma entrega já
 
 Se a mesma publicação já está vigente, repetir Publicar retorna a publicação existente, sem duplicar. Se retirada, Publicar não restaura: 409. Repetir Retirar devolve a situação já retirada, sem trocar motivo/autoria/data. Para sigilo ou pedido N3 já decididos, repetição com conteúdo diferente retorna 409; não sobrescrever motivo. Decisão terminal não muda para outra ação.
 
-Implementação deve padronizar tipos/datas e aplicar as garantias descritas em DATABASE.md. Estes documentos fecham o desenho para revisão; a migration inicial e os testes SQL cobrem a estrutura do banco; serviços, rotas e seus testes continuam como trabalho de implementação.
+Implementação deve padronizar tipos/datas e aplicar as garantias descritas em DATABASE.md. Estes documentos fecham o desenho para revisão; a migration inicial define a estrutura do banco; serviços, rotas e seus testes continuam como trabalho de implementação.
 
 ## Referência detalhada de acesso e autenticação
 
