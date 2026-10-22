@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from schemas.sc_base_model import BaseSchema
+from facial_recognition.schemas.base_model import BaseSchema
 
 
 class TeamResponse(BaseSchema):

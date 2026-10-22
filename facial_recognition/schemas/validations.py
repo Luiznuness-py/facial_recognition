@@ -8,11 +8,11 @@ from typing import Literal, Self
 from pydantic import Field, model_validator
 
 from schemas.sc_vault import NewValidationRequestResponse
-from schemas.sc_users import UserSummary
-from schemas.sc_biological_agents import BiologicalAgentSummary
-from schemas.sc_validation_participants import ValidationParticipantResponse
-from schemas.sc_investigation_submissions import InvestigationSubmissionResponse
-from schemas.sc_base_model import AuditSchema, BaseSchema, PaginationParams, Reason
+from facial_recognition.schemas.users import UserSummary
+from facial_recognition.schemas.biological_agents import BiologicalAgentSummary
+from facial_recognition.schemas.validation_participants import ValidationParticipantResponse
+from facial_recognition.schemas.investigation_submissions import InvestigationSubmissionResponse
+from facial_recognition.schemas.base_model import AuditSchema, BaseSchema, PaginationParams, Reason
 
 ValidationStatus = Literal["OPEN", "IN_REVIEW", "RETURNED", "REPORTED", "PUBLISHED", "CLOSED"]
 ClosureCause = Literal["N2_CLOSED", "N3_RESTRICTED", "N3_NEW_VALIDATION"]

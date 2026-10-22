@@ -4,8 +4,8 @@ from typing import Self
 
 from pydantic import Field, SecretStr, model_validator
 
-from schemas.sc_users import NewPassword
-from schemas.sc_base_model import BaseSchema
+from facial_recognition.schemas.users import NewPassword
+from facial_recognition.schemas.base_model import BaseSchema
 
 
 class PasswordCompleteRequest(BaseSchema):

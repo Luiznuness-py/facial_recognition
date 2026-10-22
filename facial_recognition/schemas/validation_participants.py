@@ -3,8 +3,8 @@
 from datetime import datetime
 from uuid import UUID
 
-from schemas.sc_roles import RoleCode
-from schemas.sc_base_model import BaseSchema
+from facial_recognition.schemas.roles import RoleCode
+from facial_recognition.schemas.base_model import BaseSchema
 
 
 class ValidationParticipantAdd(BaseSchema):

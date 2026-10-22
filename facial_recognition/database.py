@@ -1,12 +1,11 @@
 import logging
 from pathlib import Path
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 
-from core.settings import settings
+from facial_recognition.settings import settings
 
 import asyncpg
-from fastapi import FastAPI, Request
+from fastapi import Request
 from asyncpg import Connection, Pool
 
 
@@ -26,21 +25,6 @@ async def get_connection(request: Request) -> AsyncIterator[Connection]:
 
     async with pool.acquire() as conn:
         yield conn
-
-
-@asynccontextmanager # transforma uma função assíncrona com yield em um gerenciador de ciclo de vida
-async def lifespan(app: FastAPI):
-    """Aplica migrations ao iniciar a API e fecha o pool ao encerrá-la."""
-    pool: Pool = await create_pool()
-
-    try:
-        await run_migrations(pool=pool)
-        app.state.db_pool = pool
-        yield
-    finally:
-        await pool.close()
-
-    logging.info("FastAPI iniciado!")
 
 
 async def run_migrations(pool: Pool) -> None:
@@ -84,6 +68,7 @@ async def run_migrations(pool: Pool) -> None:
                 )
 
     logging.info("Migrations validadas ou criadas com sucesso!")
+
 
 async def drop_all_tables(pool: Pool) -> None:
     """Remove o schema público em ambientes de desenvolvimento ou teste."""

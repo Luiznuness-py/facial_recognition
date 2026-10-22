@@ -4,8 +4,8 @@ from uuid import UUID
 from typing import Literal
 from datetime import datetime
 
-from schemas.sc_users import NewPassword, UserName
-from schemas.sc_base_model import (
+from facial_recognition.schemas.users import NewPassword, UserName
+from facial_recognition.schemas.base_model import (
     BaseSchema, 
     PaginationParams, 
     NormalizedEmail, 

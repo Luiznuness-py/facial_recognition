@@ -12,9 +12,9 @@ from pydantic import (
     StringConstraints, 
 )
 
-from schemas.sc_roles import RoleCode
-from schemas.sc_teams import TeamResponse
-from schemas.sc_base_model import (
+from facial_recognition.schemas.roles import RoleCode
+from facial_recognition.schemas.teams import TeamResponse
+from facial_recognition.schemas.base_model import (
     Reason,
     BaseSchema, 
     AuditSchema, 

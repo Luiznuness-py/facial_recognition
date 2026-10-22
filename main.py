@@ -1,7 +1,7 @@
 import asyncio
 
-from core.log import configure_logging
-from core.database import create_pool, run_migrations, drop_all_tables
+from facial_recognition.log import configure_logging
+from facial_recognition.database import create_pool, run_migrations, drop_all_tables
 
 logger = configure_logging()
 

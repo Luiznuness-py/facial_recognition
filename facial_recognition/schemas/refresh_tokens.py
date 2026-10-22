@@ -2,7 +2,7 @@
 
 from pydantic import Field
 
-from schemas.sc_base_model import BaseSchema
+from facial_recognition.schemas.base_model import BaseSchema
 
 
 class RefreshTokenResponse(BaseSchema):

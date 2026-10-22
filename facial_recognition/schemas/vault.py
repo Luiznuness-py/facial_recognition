@@ -7,10 +7,10 @@ from typing import Any, Literal
 
 from pydantic import ConfigDict, Field
 
-from schemas.sc_publications import PublicRiskCategory
-from schemas.sc_biological_agents import BiologicalAgentSummary
-from schemas.sc_base_model import BaseSchema, PaginationParams, Reason
-from schemas.sc_investigation_submissions import InvestigationSubmissionResponse
+from facial_recognition.schemas.publications import PublicRiskCategory
+from facial_recognition.schemas.biological_agents import BiologicalAgentSummary
+from facial_recognition.schemas.base_model import BaseSchema, PaginationParams, Reason
+from facial_recognition.schemas.investigation_submissions import InvestigationSubmissionResponse
 
 VaultDecisionStatus = Literal["WAITING_N3", "PUBLISHED", "RESTRICTED", "NEW_VALIDATION_REQUESTED"]
 SentReportStatus = VaultDecisionStatus | Literal["WITHDRAWN"]

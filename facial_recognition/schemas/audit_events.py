@@ -6,7 +6,7 @@ from datetime import datetime
 
 from pydantic import model_validator
 
-from schemas.sc_base_model import BaseSchema, PaginationParams
+from facial_recognition.schemas.base_model import BaseSchema, PaginationParams
 
 
 class AuditEventResponse(BaseSchema):

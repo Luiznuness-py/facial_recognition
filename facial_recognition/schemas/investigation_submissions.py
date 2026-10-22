@@ -6,8 +6,8 @@ from datetime import datetime
 
 from pydantic import Field
 
-from schemas.sc_base_model import BaseSchema
-from schemas.sc_validation_participants import ParticipantSnapshot
+from facial_recognition.schemas.base_model import BaseSchema
+from facial_recognition.schemas.validation_participants import ParticipantSnapshot
 
 
 class InvestigationSubmissionResponse(BaseSchema):

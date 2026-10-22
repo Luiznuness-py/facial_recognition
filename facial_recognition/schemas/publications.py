@@ -4,7 +4,7 @@ from uuid import UUID
 from typing import Literal
 from datetime import datetime
 
-from schemas.sc_base_model import BaseSchema, PaginationParams, Reason
+from facial_recognition.schemas.base_model import BaseSchema, PaginationParams, Reason
 
 PublicRiskCategory = Literal["LOW", "MODERATE", "HIGH"]
 PublicationStatus = Literal["PUBLISHED", "WITHDRAWN"]

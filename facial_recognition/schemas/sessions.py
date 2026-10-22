@@ -4,9 +4,9 @@ from typing import Literal
 
 from pydantic import Field, SecretStr
 
-from schemas.sc_users import SessionUserResponse
-from schemas.sc_base_model import BaseSchema, NormalizedEmail
-from schemas.sc_authentication_attempts import AuthenticationStepResponse
+from facial_recognition.schemas.users import SessionUserResponse
+from facial_recognition.schemas.base_model import BaseSchema, NormalizedEmail
+from facial_recognition.schemas.authentication_attempts import AuthenticationStepResponse
 
 
 class LoginRequest(BaseSchema):

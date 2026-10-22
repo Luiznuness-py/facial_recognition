@@ -27,7 +27,7 @@ class Settings(BaseSettings):
         default_factory=lambda: datetime.now().strftime(
             "%Y-%m-%d'T'%H:%M:%S.%f")[:-3]
     )
-    DEBUG: bool = Field(default=False, env="DEBUG_MODE")
+    DEBUG: bool = Field(default=True, env="DEBUG_MODE")
     ENVIRONMENT: str = Field(
         default="development", description="Environment (development, production, test)")
     ASYNC_MODE: bool = Field( default=True, description="liga/desliga async engine")

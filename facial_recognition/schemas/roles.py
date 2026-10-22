@@ -3,8 +3,8 @@
 from typing import Literal
 from uuid import UUID
 
-from schemas.sc_base_model import BaseSchema
-from schemas.sc_permissions import PermissionResponse
+from facial_recognition.schemas.base_model import BaseSchema
+from facial_recognition.schemas.permissions import PermissionResponse
 
 RoleCode = Literal["ADMIN", "N1", "N2", "N3"]
 

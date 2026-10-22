@@ -6,7 +6,7 @@ from datetime import date, datetime
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
-from schemas.sc_base_model import AuditSchema, BaseSchema, PaginationParams
+from facial_recognition.schemas.base_model import AuditSchema, BaseSchema, PaginationParams
 
 AgentStatus = Literal["ACTIVE", "INACTIVE"]
 
