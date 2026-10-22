@@ -1,15 +1,18 @@
 import asyncio
 
+from core.log import configure_logging
 from core.database import create_pool, run_migrations, drop_all_tables
 
+logger = configure_logging()
+
 async def main():
-    """Executa as migrations e o reset de banco usado no teste manual atual."""
+    """Aplica as migrations sem remover os dados existentes."""
 
     pool = await create_pool()
 
     try:
         await run_migrations(pool=pool)
-        await drop_all_tables(pool=pool)
+        # await drop_all_tables(pool=pool)
     finally:
         await pool.close()
 

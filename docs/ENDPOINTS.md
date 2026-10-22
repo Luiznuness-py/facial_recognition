@@ -2,7 +2,7 @@
 
 Este arquivo é a referência para desenvolver a comunicação entre as telas e o servidor. Um endpoint é o endereço usado para executar uma ação ou consultar informações. `GET` consulta, `POST` executa uma ação ou cria um registro, `PATCH` altera campos e `DELETE` remove um vínculo quando permitido.
 
-Para entender o funcionamento sem detalhes técnicos, leia [Como funciona o sistema](BUSINESS_RULES.md). O [banco alvo](DATABASE_TARGET.md) descreve as tabelas e o [exemplo completo](USE_CASES.md) mostra uma investigação preenchida.
+Para entender o funcionamento sem detalhes técnicos, leia [Como funciona o sistema](BUSINESS_RULES.md). O [banco alvo](DATABASE.md) descreve as tabelas e o [exemplo completo](USE_CASES.md) mostra uma investigação preenchida.
 
 **Estado:** estes endpoints são contratos planejados. Este documento não comprova que as rotas estejam implementadas ou testadas. As escolhas técnicas continuam sujeitas à revisão e aos testes indicados abaixo.
 
@@ -31,7 +31,7 @@ Toda rota privada usa Access e conta/sessão habilitada, salvo as etapas de aute
 
 ### Erros
 
-401: precisa autenticar; 403: ação não permitida; 404: não existe ou não está no seu escopo; 409: duplicidade ou estado incompatível; 413: upload grande; 422: campo inválido; 429: limite; 503: indisponível. Corpo de erro `{error:{code,message,request_id}}`; erro de campo pode acrescentar lista `fields`, sem valores secretos. Respostas selecionam campos explicitamente. Nenhuma resposta contém senha, hash, vetor ou token de autenticação completo.
+401: precisa autenticar; 403: ação não permitida; 404: não existe ou não está no seu escopo; 409: duplicidade ou estado incompatível; 413: upload grande; 422: campo inválido; 429: limite; 503: indisponível. Corpo de erro `{error:{code,message,request_id}}`; erro de campo pode acrescentar lista `fields`, sem valores secretos. Respostas selecionam campos explicitamente. Nenhuma resposta contém senha, hash, vetor ou token de autenticação completo. Autoria, datas, soft_delete e campos do log são definidos pelo backend, sem aceitar esses campos livremente em Create/Update. Sessão normal exige users.status=ACTIVE, users.soft_delete=FALSE e etapas obrigatórias concluídas; usuários excluídos não recebem credenciais nem acesso privado. Papéis, permissões e vínculos excluídos não concedem acesso.
 
 
 ### `POST /auth/login`
@@ -162,7 +162,7 @@ Cria a conta aprovada e reserva a posição N2/N3, iniciando a validade da tempo
 
 - Quem/credencial: `accounts.approve`: ADMIN
 - Recebe: Sem corpo.
-- Confere e faz: Pendente; email disponível e vaga N2/N3 não ocupada por conta ativa ou pendente de ativação; cria usuário, reserva posição, associa pedido, estabelece hash na conta e início das 24h e remove hash do pedido atomicamente; não altera dados solicitados.
+- Confere e faz: Pendente; email disponível e vaga N2/N3 não ocupada por conta não excluída, ativa ou pendente de ativação; cria usuário, reserva posição, associa pedido, estabelece hash na conta e início das 24h e remove hash do pedido atomicamente; não altera dados solicitados.
 - Responde: 200: solicitação aprovada e identificador/estado da conta; 409 se vaga ocupada.
 
 ### `POST /access-requests/{id}/reject`
@@ -180,8 +180,8 @@ Permite ao administrador localizar e consultar contas sem ler faces ou conteúdo
 
 - Quem/credencial: `accounts.manage`: ADMIN
 - Recebe: Filtros/paginação ou UUID.
-- Confere e faz: Escopo administrativo.
-- Responde: 200: dados/status/flags, sem templates ou segredos.
+- Confere e faz: Escopo administrativo; consultas normais usam soft_delete=FALSE. ADMIN pode filtrar desativados para consulta e reativação, sem ampliar seu acesso ao laboratório.
+- Responde: 200: dados/status/flags/activated_at, sem templates ou segredos.
 
 ### `PATCH /users/{id}`
 
@@ -189,7 +189,7 @@ Permite ao administrador corrigir dados institucionais e papel/grupo mantendo a 
 
 - Quem/credencial: `accounts.manage`: ADMIN
 - Recebe: Campos permitidos `name,email,role_code,team_id`.
-- Confere e faz: Somente ADMIN; email válido/sem duplicidade; coerência papel/equipe e disponibilidade N2/N3 contando ativas/pendentes. Mudança de email ou permissões revoga sessões/tentativas e gera auditoria em transação.
+- Confere e faz: Somente ADMIN; email válido/sem duplicidade; coerência papel/equipe e disponibilidade N2/N3 contando ativas/pendentes com soft_delete=FALSE. Mudança de email ou permissões revoga sessões/tentativas e gera auditoria em transação.
 - Responde: 200: conta atualizada; 409 se email/vaga ocupados.
 
 ### `POST /users/{id}/deactivate`
@@ -198,7 +198,7 @@ Bloqueia uma pessoa e suas credenciais sem apagar registros anteriores.
 
 - Quem/credencial: `accounts.manage`: ADMIN
 - Recebe: `reason`.
-- Confere e faz: Bloqueia conta ativa ou pendente de ativação, cancela tentativas e revoga sessões; libera posição N2/N3, preserva identidade/email/histórico.
+- Confere e faz: Marca soft_delete=TRUE na conta ativa ou pendente de ativação, sem mudar status ou activated_at; cancela tentativas e revoga sessões; libera posição N2/N3, preserva identidade/email/histórico e registra USER_DEACTIVATED em transação.
 - Responde: 200: conta desativada.
 
 ### `POST /users/{id}/reactivate`
@@ -207,7 +207,7 @@ Permite voltar ao sistema com nova senha e biometria, sem criar outra identidade
 
 - Quem/credencial: `accounts.manage`: ADMIN
 - Recebe: `temporary_password,reason`.
-- Confere e faz: DISABLED; cargo/equipe e vaga disponíveis; reserva posição N2/N3, redefine senha e face obrigatoriamente, revoga sessões/tentativas e autoriza ativação em transação.
+- Confere e faz: Conta com soft_delete=TRUE; cargo/equipe e vaga disponíveis; restaura a mesma linha com soft_delete=FALSE e status=PENDING_ACTIVATION, preserva activated_at; reserva posição N2/N3, redefine senha e face obrigatoriamente, revoga sessões/tentativas e registra USER_REACTIVATED em transação.
 - Responde: 200: PENDING_ACTIVATION, validade e etapas, sem senha/hash; 409 se vaga ocupada.
 
 ### `POST /users/{id}/activation/revalidate`
@@ -225,7 +225,7 @@ Autoriza a recuperação de senha, rosto ou ambos. Separa recuperação administ
 
 - Quem/credencial: `accounts.manage`: ADMIN
 - Recebe: `mode`: PASSWORD/BIOMETRIC/BOTH; `reason`; `temporary_password` para senha.
-- Confere e faz: Conta habilitada; hash temporário quando necessário; para face remove vetores e autoriza cadastro na mesma transação; revoga sessões/tentativas.
+- Confere e faz: Conta habilitada; hash temporário quando necessário; para face exclui logicamente os vetores anteriores e autoriza cadastro na mesma transação; revoga sessões/tentativas.
 - Responde: 200: requisitos e validade, sem senha.
 
 ### `GET /teams`
@@ -333,7 +333,7 @@ Compartilha a investigação com um N1 apenas em leitura.
 
 - Quem/credencial: `validations.share`: N1 responsável ou N2 supervisor do grupo
 - Recebe: `user_id`.
-- Confere e faz: Ator N1 responsável ou N2 supervisor habilitado do grupo da validação; alvo N1 ativo desse grupo, sem duplicata; vínculo exclusivamente de leitura; estado OPEN/RETURNED, preservando participantes das entregas anteriores.
+- Confere e faz: Ator N1 responsável ou N2 supervisor habilitado do grupo da validação; alvo N1 ativo e não excluído desse grupo, sem duplicata; inclui ou restaura o vínculo da mesma chave composta, preserva added_by/at e registra a nova ação no log; vínculo exclusivamente de leitura; estado OPEN/RETURNED, preservando participantes das entregas anteriores.
 - Responde: 201: compartilhamento em leitura.
 
 ### `POST /validations/{id}/return`
@@ -451,7 +451,7 @@ Permite revisar eventos administrativos sem revelar conteúdo científico ou mot
 - Quem/credencial: `audit.read`: ADMIN
 - Recebe: Paginação/evento/usuário/período.
 - Confere e faz: Somente metadados administrativos e de acesso; sem conteúdo de análises/relatórios/cofre.
-- Responde: 200: eventos sanitizados.
+- Responde: 200: eventos sanitizados de audit_events: actor_id,event,resource_type,resource_id,success,reason permitido,request_id,created_at. É o único log de ações do MVP; backend define os campos, registra escrita bem-sucedida e evento na mesma transação e não copia segredos ou conteúdo reservado. Não oferece edição/exclusão comum dos eventos.
 
 ### `GET /admin/roles`
 
@@ -510,7 +510,7 @@ N2 precisa escolher responsável para próxima tarefa sem consultar diretório d
 
 ### `DELETE /validations/{id}/participants/{user_id}`
 
-N2 do grupo remove um colaborador em OPEN/RETURNED. Access e CSRF, sem corpo. Não remove o responsável; elimina vínculo atual, guarda auditoria e não apaga entregas anteriores. Retorna 204; vínculo ausente retorna 404.
+N2 do grupo remove um colaborador em OPEN/RETURNED. Access e CSRF, sem corpo. Não remove o responsável; marca soft_delete=TRUE no vínculo atual, guarda auditoria e não apaga entregas anteriores. Retorna 204; vínculo ausente retorna 404.
 
 ### `PATCH /validations/{id}/responsible`
 
@@ -522,11 +522,11 @@ N3 pede outra investigação, não edição do original. Access, CSRF, `vault.de
 
 ### Complemento de `POST /biological-agents/{id}/validations`
 
-Além de `responsible_user_id`, recebe `request_dossier_id` opcional quando atende pedido N3. Confere mesmo agente/grupo, pedido pendente e ausência de validação ativa. Cria tarefa e marca atendimento atomicamente. Se há pedido pendente para o agente, a próxima tarefa deve vinculá-lo; não deixar um pedido ativo e criar tarefas desvinculadas. Retorna 201 com tarefa e motivo autorizado. Novo responsável escolhe colaboradores depois.
+Além de `responsible_user_id`, recebe `request_vault_id` opcional quando atende pedido N3. Confere mesmo agente/grupo, pedido pendente e ausência de validação ativa. Cria tarefa e marca atendimento atomicamente. Se há pedido pendente para o agente, a próxima tarefa deve vinculá-lo; não deixar um pedido ativo e criar tarefas desvinculadas. Retorna 201 com tarefa e motivo autorizado. Novo responsável escolhe colaboradores depois.
 
 ### Complemento de `GET /reports/sent`
 
-Além do título, agente, protocolo e situação, retorna `dossier_id` como identificador da ação (não autorização de leitura), e `new_validation_request:{reason,requested_at,fulfilled_validation_id}` somente quando há pedido. N2 nunca recebe o motivo de sigilo/retirada. Situação do card: WAITING_N3, PUBLISHED, RESTRICTED, NEW_VALIDATION_REQUESTED; se publicada e retirada, mostrar WITHDRAWN. Um pedido atendido continua registrado com o ID da nova tarefa.
+Além do título, agente, protocolo e situação, retorna `vault_id` como identificador da ação (não autorização de leitura), e `new_validation_request:{reason,requested_at,fulfilled_validation_id}` somente quando há pedido. N2 nunca recebe o motivo de sigilo/retirada. Situação do card: WAITING_N3, PUBLISHED, RESTRICTED, NEW_VALIDATION_REQUESTED; se publicada e retirada, mostrar WITHDRAWN. Um pedido atendido continua registrado com o ID da nova tarefa.
 
 ### Complemento das consultas de validação
 
@@ -560,7 +560,7 @@ Os modelos definirão quantidade/intervalo de frames, crops, limiares, resoluç�
 
 Transações e bloqueio por agente para cadastro/envio/edição/estado/criação/decisão; índices únicos como segunda proteção. Bloqueio por email normalizado para pedido/criação/aprovação/correção, sempre na mesma ordem; reserva N2 com bloqueio do grupo e N3 com bloqueio global da posição. Bloquear usuário em contadores/recuperações/trocas de credenciais. Bloquear sessão e refresh na rotação. Nenhum “consultar e depois gravar” sem transação para esses fluxos.
 
-Sem exclusão física de história pelo usuário e sem expurgo automático neste MVP. Não persistir frames nem temporárias em texto. Logs não copiam corpo de requisição/resposta sensível. Nome e motivo científico exibidos por textContent/escape; CSP restringe scripts/conexões à origem, sem HTML de usuário. A política permite imagens próprias/data para prévia local, estilos/scripts externos da própria aplicação e proíbe objetos/frames; avaliar blob somente se preview realmente usar. Erro não mostra stack trace.
+Todas as 18 tabelas da aplicação usam soft_delete, sem DELETE físico ou expurgo automático neste MVP. Consultas normais, JOINs, totais e autorização filtram excluídos; restauração autorizada reutiliza a linha e mantém PKs, unicidade e FKs. Não há restauração automática em cascata. Pedido pendente e validação em andamento excluídos deixam de ocupar vaga; restauração que conflita com outro registro retorna 409. Sessões/tokens restaurados continuam sujeitos a uso, revogação e expiração. Não criar rotas genéricas de exclusão/restauração só porque a coluna existe. Não persistir frames nem temporárias em texto. Logs não copiam corpo de requisição/resposta sensível. Nome e motivo científico exibidos por textContent/escape; CSP restringe scripts/conexões à origem, sem HTML de usuário. A política permite imagens próprias/data para prévia local, estilos/scripts externos da própria aplicação e proíbe objetos/frames; avaliar blob somente se preview realmente usar. Erro não mostra stack trace.
 
 ## 3. Páginas e organização para desenvolver
 
@@ -568,7 +568,7 @@ Páginas públicas: Login e Notícias/lista/detalhe. Etapas: Cadastro facial, Re
 
 Pastas alvo: `backend/app/{core,security,routers,schemas,services,repositories,biometrics}`, `backend/seed/admin.py`, `backend/migrations`, `frontend/{pages,js,css,assets}`, `docs`. Core gerencia config/pool/lifespan; security concentra tokens, dependências/CSRF/autorização; router traduz HTTP; service muda estados; repository SQL. Biometrics tem simulador e adaptação real. Sem ORM, microserviços ou framework frontend novo. Reorganização das pastas será uma etapa explícita na implementação; nenhum arquivo de execução foi movido.
 
-Ordem: base/config/migrations → contas/permissões → login/simulador → agentes/validações → revisão/cofre/publicação → páginas → integração real e testes do conjunto. Testes precisam cobrir acessos negativos e concorrência em PostgreSQL real; mocks não comprovam constraints. Testar cookies/CSRF/câmera também no navegador. Não executar o `main.py` atual em banco persistente: ele remove tabelas.
+Ordem: base/config/migrations → contas/permissões → login/simulador → agentes/validações → revisão/cofre/publicação → páginas → integração real e testes do conjunto. Testes precisam cobrir acessos negativos e concorrência em PostgreSQL real; mocks não comprovam constraints. Testar cookies/CSRF/câmera também no navegador. O `main.py` aplica migrations pendentes e preserva dados; não inicia a API e não executa reset automático.
 
 ## 4. Respostas que as telas usam
 
@@ -619,7 +619,7 @@ Salvar rascunho altera somente campos enviados. Repetir envio de uma entrega já
 
 Se a mesma publicação já está vigente, repetir Publicar retorna a publicação existente, sem duplicar. Se retirada, Publicar não restaura: 409. Repetir Retirar devolve a situação já retirada, sem trocar motivo/autoria/data. Para sigilo ou pedido N3 já decididos, repetição com conteúdo diferente retorna 409; não sobrescrever motivo. Decisão terminal não muda para outra ação.
 
-Implementação deve padronizar tipos/datas e aplicar as garantias descritas em DATABASE_TARGET.md. Estes documentos fecham o desenho para revisão; SQL executável, testes e preparação local continuam trabalho de implementação, não novas regras a inventar.
+Implementação deve padronizar tipos/datas e aplicar as garantias descritas em DATABASE.md. Estes documentos fecham o desenho para revisão; a migration inicial e os testes SQL cobrem a estrutura do banco; serviços, rotas e seus testes continuam como trabalho de implementação.
 
 ## Referência detalhada de acesso e autenticação
 
@@ -627,9 +627,9 @@ Implementação deve padronizar tipos/datas e aplicar as garantias descritas em 
 
 N2 solicita conta N1 do próprio grupo; N3 solicita conta N2 escolhendo grupo; ADMIN pode cadastrar qualquer nível institucional diretamente, com aprovação automática. N2 não escolhe grupo ou papel livremente: o backend os deriva.
 
-O solicitante entrega a a senha temporária pessoalmente, fora do sistema; o site pode sugerir uma senha aleatória. Não enviamos email. Enquanto o pedido está pendente, não existe conta: só os dados do pedido e o hash da senha. ADMIN aprova ou rejeita com motivo, sem editar o pedido. Aprovação cria a conta e inicia 24 horas de validade; remove o hash do pedido na mesma operação. Rejeição também remove esse hash, guarda histórico e não cria conta. Outra tentativa usa novo formulário.
+O solicitante entrega a a senha temporária pessoalmente, fora do sistema; o site pode sugerir uma senha aleatória. Não enviamos email. Enquanto o pedido está pendente, não existe conta: só os dados do pedido e o hash da senha. ADMIN aprova ou rejeita com motivo, sem editar o pedido. Aprovação cria a conta com soft_delete=FALSE, status=PENDING_ACTIVATION e activated_at nulo, e inicia 24 horas de validade; remove o hash do pedido na mesma operação. Rejeição também remove esse hash, guarda histórico e não cria conta. Outra tentativa usa novo formulário.
 
-A senha temporária permite retomar a ativação até vencer: primeiro login não a consome. Só é invalidada quando a senha definitiva é criada. Se vencer, ADMIN revalida a MESMA senha por mais 24 horas. Se a face já foi cadastrada, não é cadastrada outra vez: a pessoa reconhece sua face e vai à troca de senha.
+A senha temporária permite retomar a ativação até vencer: primeiro login não a consome. Só é invalidada quando a senha definitiva é criada. Na primeira conclusão da ativação, o backend define status=ACTIVE e activated_at=COALESCE(activated_at,NOW()), sem sobrescrever essa data em reativações. Se vencer, ADMIN revalida a MESMA senha por mais 24 horas. Se a face já foi cadastrada, não é cadastrada outra vez: a pessoa reconhece sua face e vai à troca de senha.
 
 Primeira conta ADMIN vem do seed e dispensa biometria. Outros administradores e recuperação da própria conta ADMIN ficam fora do MVP. O ADMIN inicial também troca sua senha temporária antes de receber acesso normal.
 
@@ -649,7 +649,7 @@ Senhas temporárias e definitivas: 8 a 30 caracteres e consulta a TXT local de s
 
 Não há página “Editar dados”. Há “Alterar senha”: sessão válida, senha atual, face nova para N1/N2/N3, nova senha e confirmação. ADMIN dispensa face. Ao completar, revogar todas as sessões e pedir novo login. A prova é ligada à sessão e à operação de troca; não reutilizar um token de ativação como prova dessa operação.
 
-Somente ADMIN recupera senha esquecida (nova temporária, face mantida), biometria (remove embeddings e autoriza recadastro, senha mantida) ou ambas. Recuperação facial com senha definitiva válida termina em sessão sem exigir outra troca de senha. Apenas faltar um embedding não autoriza cadastrar face.
+Somente ADMIN recupera senha esquecida (nova temporária, face mantida), biometria (exclui logicamente os embeddings e autoriza recadastro, senha mantida) ou ambas. Vetores anteriores são excluídos logicamente e deixam de participar da comparação. Recuperação facial com senha definitiva válida termina em sessão sem exigir outra troca de senha. Apenas faltar um embedding não autoriza cadastrar face.
 
-Desativar conta revoga sessões/tentativas e libera posição, preservando email e história. Reativar sempre exige nova temporária e novo cadastro facial, com troca de senha. ADMIN também corrige nome/email/papel/grupo; mudança de email ou permissões revoga sessão. Não altera dados históricos. Mudança de grupo/papel de responsável em tarefa ainda em preparação exige substituição pelo N2 antes, para não deixar editor fora do grupo. Desativação da conta nunca é impedida por esse motivo: bloqueia acesso imediatamente, mantém tarefa/história e N2 deve atribuir outro responsável antes de continuar. Se a tarefa está em revisão, N2 pode concluir a revisão ou devolver antes de trocar. Essas são escolhas desta consolidação para revisão.
+Desativar conta revoga sessões/tentativas e libera posição, preservando email e história. Reativar limpa soft_delete, volta a PENDING_ACTIVATION e sempre exige nova temporária e novo cadastro facial, com troca de senha; activated_at mantém a data da primeira ativação. ADMIN também corrige nome/email/papel/grupo; mudança de email ou permissões revoga sessão. Não altera dados históricos. Mudança de grupo/papel de responsável em tarefa ainda em preparação exige substituição pelo N2 antes, para não deixar editor fora do grupo. Desativação da conta nunca é impedida por esse motivo: bloqueia acesso imediatamente, mantém tarefa/história e N2 deve atribuir outro responsável antes de continuar. Se a tarefa está em revisão, N2 pode concluir a revisão ou devolver antes de trocar. Essas são escolhas desta consolidação para revisão.
 

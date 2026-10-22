@@ -1,6 +1,6 @@
 # Uma pessoa entra e o trabalho percorre o sistema
 
-Este exemplo é fictício e serve para visualizar as telas, campos e regras, não para simular um diagnóstico real. Não atribuímos dados científicos verdadeiros à COVID-19. O banco e as rotas ainda serão implementados. Leia junto com [Como funciona o sistema](BUSINESS_RULES.md), [Endpoints](ENDPOINTS.md) e [Tabelas](DATABASE_TARGET.md).
+Este exemplo é fictício e serve para visualizar as telas, campos e regras, não para simular um diagnóstico real. Não atribuímos dados científicos verdadeiros à COVID-19. A estrutura inicial do banco está na migration 001; as rotas ainda serão implementadas. Leia junto com [Como funciona o sistema](BUSINESS_RULES.md), [Endpoints](ENDPOINTS.md) e [Tabelas](DATABASE.md).
 
 ## 1. Quem participa do exemplo
 

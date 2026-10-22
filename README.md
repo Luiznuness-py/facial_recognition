@@ -4,9 +4,9 @@ Projeto acadêmico local de autenticação facial e controle de acesso para um l
 
 ## Estado do projeto
 
-Regras e contratos estão em planejamento. A base existente contém configuração/conexão PostgreSQL e migrations; a documentação não significa que a API, páginas ou integração biométrica já funcionam. Nesta etapa, somente documentação está sendo montada.
+Regras e contratos estão em planejamento. A base existente contém configuração/conexão PostgreSQL e migrations; a documentação não significa que a API, páginas ou integração biométrica já funcionam. A migration inicial e os testes SQL acompanham os contratos documentados; as rotas ainda serão implementadas.
 
-**Atenção:** `main.py` executa migrations e depois remove as tabelas no teste manual atual. Não executar sobre dados que precisam ser preservados. A entrada normal da API ainda será definida.
+`main.py` aplica as migrations pendentes e encerra a conexão, preservando as tabelas e os dados. Ele ainda não inicia a API; sua entrada normal será definida na implementação.
 
 ## Documentação para revisar
 
@@ -15,7 +15,7 @@ Leia nesta ordem:
 1. [Como funciona o sistema](docs/BUSINESS_RULES.md): objetivo, participantes, acesso, fluxo e regras essenciais em linguagem simples.
 2. [Exemplo completo](docs/USE_CASES.md): uma investigação preenchida para visualizar o fluxo; inclui exemplos técnicos.
 3. [Endpoints e suas finalidades](docs/ENDPOINTS.md): chamadas das telas, dados, verificações, respostas e escolhas de implementação.
-4. [Tabelas e campos](docs/DATABASE_TARGET.md): estrutura e garantias do banco alvo.
+4. [Tabelas e campos](docs/DATABASE.md): estrutura e garantias do banco alvo.
 
 Esses arquivos são a referência atual do planejamento, ainda para revisão. A documentação descreve o desenho do sistema e não representa código já implementado.
 
@@ -28,7 +28,9 @@ Esses arquivos são a referência atual do planejamento, ainda para revisão. A 
 
 Cadastro em `biological_agents`, análise em `validations`. Várias validações por agente, uma em andamento. Encerramento ou publicação libera outra; envio ao N3 mantém a vaga ocupada. Sigilo decidido pelo N3, sem pedido de ajuste ou nova validação, encerra a tarefa automaticamente e libera outra. Um responsável edita; colaboradores apenas leem. Compartilhamento pelo N1 responsável ou N2 supervisor do grupo, somente com N1 ativos do mesmo grupo; colaboradores apenas leem.
 
-Seis tabelas do laboratório: `biological_agents`, `validations`, `validation_participants`, `investigation_submissions`, `dossiers` e `publications`. Entregas/dossiês pertencem à validação; publicação ao dossiê. Relatório e ficha juntos no cofre, sem acesso selado pelos colaboradores. Contas/autenticação usam as tabelas já definidas.
+Seis tabelas do laboratório: `biological_agents`, `validations`, `validation_participants`, `investigation_submissions`, `vault` e `publications`. Entregas/dossiês pertencem à validação; publicação ao dossiê. Relatório e ficha juntos no cofre, sem acesso selado pelos colaboradores. Contas/autenticação usam as tabelas já definidas.
+
+Todas as 18 tabelas da aplicação usam `soft_delete`, sem exclusão física pelos fluxos do produto. Contas usam PENDING_ACTIVATION/ACTIVE, desativação por `soft_delete` e `activated_at` preservando a primeira ativação. `audit_events` concentra o log genérico de ações, sem novas tabelas de histórico. As rotas ainda precisam implementar filtros e restauração conforme esses contratos.
 
 Sem transferência entre grupos, rascunho ministerial separado, retificação, devolução pública ou substituição de notícia. Original/histórico preservados; retirada de publicação não reabre a tarefa anterior.
 
@@ -88,7 +90,6 @@ pip install -r requirements.txt
 python main.py
 ```
 
-> Atenção: no estado atual, `main.py` é usado para testar migrations e executa
-> um reset do schema ao final. Não o use com dados que precisam ser preservados.
-> A execução normal da API será documentada quando a aplicação FastAPI tiver sua
-> entrada definida.
+> Nesta fase inicial, os ajustes de estrutura ficam na migration 001. Um banco
+> que já registrou essa versão não é atualizado ao editar o arquivo. Nenhum reset
+> é executado automaticamente; recriar o banco local exige uma decisão explícita.

@@ -47,7 +47,7 @@ flowchart TD
 ### UC02 - Autenticar usuário
 **Ator:** N1, N2, N3 ou Administrador
 
-**Pré-condição:** Usuário cadastrado e ativo.
+**Pré-condição:** Usuário cadastrado, não excluído (soft_delete=FALSE); para receber sessão normal, ativação e etapas obrigatórias concluídas.
 
 **Fluxo principal:**
 1. O usuário informa suas credenciais.
@@ -96,4 +96,4 @@ flowchart TD
 1. O administrador acessa o painel administrativo.
 2. Seleciona usuários, perfis ou permissões.
 3. Realiza a operação autorizada.
-4. O sistema valida e registra a alteração.
+4. O sistema valida e registra a alteração e seu log em audit_events. Desativação/restauração usa soft_delete, sem apagar a conta; activated_at preserva a primeira ativação.

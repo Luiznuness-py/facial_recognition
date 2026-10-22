@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from urllib.parse import quote
 
@@ -49,6 +50,15 @@ class Settings(BaseSettings):
     ALGORITHM: str = Field(default='HS256', description='Algorithm de criptografia do JWT')
     ACCESS_TOKEN_EXPIRE: int = Field(default=30, description='Tem de expiração do ACCESS TOKEN em minutos')
     REFRESH_TOKEN_EXPIRE: int = Field(default=30, description='Tem de expiração do REFRESH TOKEN em dias')
+
+    _SQL_INJECTION_PATTERNS: tuple[re.Pattern[str], ...] = (
+        re.compile(r"--"),
+        re.compile(r"/\*"),
+        re.compile(r"\*/"),
+        re.compile(r"(?i)\bunion\b\s+\bselect\b"),
+        re.compile(r"(?i)\bdrop\b\s+\btable\b"),
+        re.compile(r"(?i)\bor\b\s+1\s*=\s*1\b"),
+    )
 
     @field_validator("ENVIRONMENT", mode="before")
     @classmethod

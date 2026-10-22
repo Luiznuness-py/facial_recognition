@@ -45,7 +45,7 @@ Todos os endereços abaixo começam com `/api/v1`. `{id}` e `{user_id}` represen
 | [POST /users/{id}/activation/revalidate](ENDPOINTS.md#post-usersidactivationrevalidate) | Renovar a validade da mesma senha temporária. |
 | [POST /users/{id}/recovery](ENDPOINTS.md#post-usersidrecovery) | Autorizar recuperação de senha, cadastro facial ou ambos. |
 
-**Concluir quando:** Pedidos seguem o nível/equipe permitido; email não duplica; aprovação reserva as vagas N2/N3; desativação revoga acesso.
+**Concluir quando:** Pedidos seguem o nível/equipe permitido; email não duplica; aprovação reserva as vagas N2/N3; desativação usa soft_delete e revoga acesso; reativação preserva activated_at da primeira ativação e exige nova senha/face. Consultas e autorização ignoram registros e vínculos excluídos; ações geram log sanitizado em audit_events.
 
 ## Etapa 4 - Entrada e segurança compartilhada
 

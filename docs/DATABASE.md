@@ -2,7 +2,7 @@
 
 Este arquivo mostra as tabelas e campos que vamos usar. O funcionamento está em [BUSINESS_RULES.md](BUSINESS_RULES.md) e os contratos das rotas em [ENDPOINTS.md](ENDPOINTS.md), e o exemplo completo em [USE_CASES.md](USE_CASES.md). A [migration inicial](../migrations/001_initial_schema.sql) agora define essa estrutura para bancos novos. Isso não comprova que o banco do projeto já foi atualizado ou que os serviços foram implementados.
 
-Editar a migration 001 não modifica um banco onde ela já está registrada. Para preservar dados existentes, a atualização exige uma migration posterior de conversão. A 001 inclui estados, limites, chaves, índices e proteção do conteúdo histórico; permissões, reserva de N2/N3, bloqueios transacionais e regras entre tabelas continuam sendo responsabilidade da implementação dos serviços. Os [testes SQL](../tests/test_initial_schema.sql) devem ser executados somente em um banco isolado com a 001 aplicada.
+Nesta fase inicial, a estrutura fica concentrada na migration 001. Editá-la não modifica um banco onde ela já está registrada; a recriação de um banco de desenvolvimento depende de decisão explícita, pois apaga os dados existentes. A 001 inclui estados, limites, chaves, índices e proteção do conteúdo histórico; permissões, reserva de N2/N3, bloqueios transacionais e regras entre tabelas continuam sendo responsabilidade da implementação dos serviços. Os [testes SQL](../tests/test_initial_schema.sql) devem ser executados somente em um banco isolado com a 001 aplicada.
 
 O banco alvo tem **18 tabelas**: 12 de contas, autorização e segurança; 6 do laboratório. Não é necessário adicionar uma tabela de rascunhos, uma de notícias em Markdown ou uma para cada nível.
 
@@ -16,7 +16,7 @@ Os campos `created_by` e `updated_by` registram, respectivamente, quem criou o r
 
 Por exemplo: se Ana criar uma equipe, `teams.created_by` recebe o ID de Ana. Se Bruno alterar essa equipe depois, `teams.updated_by` recebe o ID de Bruno. A chave estrangeira impede gravar nesses campos um ID que não exista em `users`; o backend precisa identificar e preencher o autor correto.
 
-Na migration, os vínculos de autoria de `roles` e `teams` são adicionados depois:
+Na migration, os vínculos de autoria de `roles`, `teams`, `permissions` e `role_permissions` são adicionados depois de criar `users`. Por exemplo:
 
 ```sql
 ALTER TABLE roles
@@ -38,26 +38,40 @@ Os campos de autoria dessas tabelas permitem `NULL` para cadastrar os níveis e 
 
 ## Convenções
 
-IDs UUID; instantes TIMESTAMPTZ; data de coleta DATE; flags BOOLEAN; hashes/textos TEXT; conteúdo criptografado BYTEA. Percentuais NUMERIC(5,2), entre 0 e 100, escolha desta consolidação. Limites de caracteres são validados no frontend/backend e protegidos no banco, sem truncamento automático. Datas de criação/alteração são geradas pelo sistema. Exclusão de uma conta/agente não deve apagar histórico em cascata; desativação é o fluxo normal.
+IDs UUID; instantes TIMESTAMPTZ; data de coleta DATE; flags BOOLEAN; hashes/textos TEXT; conteúdo criptografado BYTEA. Percentuais NUMERIC(5,2), entre 0 e 100, escolha desta consolidação. Limites de caracteres são validados no frontend/backend e protegidos no banco, sem truncamento automático. Datas de criação/alteração são geradas pelo sistema. As 18 tabelas da aplicação têm `soft_delete BOOLEAN NOT NULL DEFAULT FALSE`; a tabela técnica `schema_migrations` não é um registro removível da aplicação. Nenhuma operação do produto faz exclusão física ou exclusão em cascata.
+
+## Exclusão lógica, ativação e log de ações
+
+`soft_delete = TRUE` retira o registro das consultas e operações normais; restaurar usa `FALSE` na mesma linha. O backend deve filtrar também JOINs, totais e verificações de acesso. Consulta de excluídos e restauração exigem autorização específica no fluxo existente; o campo não cria novas rotas genéricas de lixeira. Não há cascata automática: restaurar um pai não restaura seus filhos nem concede acesso por vínculos excluídos.
+
+Em `users`, `status` representa a conclusão da ativação e `soft_delete` representa a desativação. `activated_at` é preenchido na primeira conclusão, usando `COALESCE(activated_at, NOW())`, e nunca é limpo ou substituído em desativações, restaurações ou novas etapas de ativação. Uma conta ACTIVE pode estar excluída logicamente e não ter acesso. Reativar mantém as exigências de nova senha/face: limpa soft_delete, muda para PENDING_ACTIVATION e preserva activated_at. Não há estado DISABLED nem colunas disabled_at/by.
+
+Restaurar sessões, tokens, senhas ou vetores não revalida credenciais antigas: expiração, revogação, uso, compatibilidade do modelo e regras de recuperação continuam sendo verificadas. Inativação científica da amostra e retirada de publicação continuam representadas por seus estados próprios; soft_delete não substitui essas decisões de negócio.
+
+Unicidade de identidade (email, código, protocolo), PKs e FKs continuam valendo para registros excluídos. Vínculos com PK composta são restaurados em vez de reinseridos. Os índices de pedido pendente e validação em andamento desconsideram excluídos; se outra linha tiver ocupado a vaga, restaurar retorna conflito (409), sem apagar nem alterar o substituto.
+
+`audit_events` é o único log de ações do MVP, sem tabelas adicionais de histórico ou versões de cada alteração. `actor_id` identifica quem fez a ação (pode ser nulo sem usuário identificado); `event` é um código estável como USER_DEACTIVATED ou USER_REACTIVATED; `resource_type/resource_id` identificam o alvo; `success` indica o resultado; `reason` registra o motivo permitido; `request_id` correlaciona a requisição; `created_at` registra o momento. Campos de autoria, datas e log são preenchidos pelo backend, nunca escolhidos pelo cliente.
+
+A operação de escrita bem-sucedida e seu evento são gravados na mesma transação; uma falha pode gerar evento após o rollback da operação. Não sobrescrever eventos existentes para registrar uma nova ação e não oferecer exclusão comum de logs. O soft_delete existe também nessa tabela por padronização, mas qualquer eventual manutenção deve preservar o evento. Não armazenar senhas, hashes, tokens, embeddings, corpos completos de requisições ou conteúdo reservado no log.
 
 ## Contas, autorização e segurança - 12 tabelas
 
 | Tabela | Campos | Regra principal |
 | --- | --- | --- |
 | `roles` | `id, code, name, description, created_at, created_by, updated_at, updated_by` | Códigos ADMIN/N1/N2/N3; código único, nomes por extenso na tela. |
-| `permissions` | `id, code, description` | Uma ação identificada por código único. |
-| `role_permissions` | `role_id, permission_id` | PK composta; associação muitos para muitos. |
+| `permissions` | `id, code, description, created_at, created_by, updated_at, updated_by` | Uma ação identificada por código único. |
+| `role_permissions` | `role_id, permission_id, created_at, created_by, updated_at, updated_by` | PK composta; associação muitos para muitos. |
 | `teams` | `id, code, name, description, created_at, created_by, updated_at, updated_by` | Grupo administrativo, não classificação científica. Código único. |
-| `users` | `id, name, email, role_id, team_id, status, biometric_enrollment_required, password_change_required, activated_at, disabled_at, disabled_by, created_at, created_by, updated_at, updated_by`; controles escolhidos `biometric_failure_count, biometric_failure_window_started_at, biometric_blocked_until` | Email normalizado único, inclusive desativados; N1/N2 têm grupo. Um N2 habilitado por grupo e um N3, incluindo reserva na ativação. |
-| `access_requests` | `id, user_id?, requested_name, requested_email, temporary_password_hash?, requested_by, requested_role_id, requested_team_id?, status, created_at, decided_by?, decided_at?, rejection_reason?` | Conta só nasce na aprovação; hash somente enquanto pendente. Rejeição encerra o pedido. |
-| `password_hashes` | `user_id, password_hash, is_temporary, temporary_expires_at?, updated_at, updated_by` | Uma credencial atual por usuário; PK/FK user_id; Argon2id. |
+| `users` | `id, name, email, role_id, team_id, status, biometric_enrollment_required, password_change_required, activated_at, created_at, created_by, updated_at, updated_by`; controles escolhidos `biometric_failure_count, biometric_failure_window_started_at, biometric_blocked_until` | Email normalizado único, inclusive desativados; N1/N2 têm grupo. Um N2 habilitado por grupo e um N3, incluindo reserva na ativação. |
+| `access_requests` | `id, user_id?, requested_name, requested_email, temporary_password_hash?, requested_by, requested_role_id, requested_team_id?, status, created_at, updated_at, updated_by, decided_by?, decided_at?, rejection_reason?` | Conta só nasce na aprovação; hash somente enquanto pendente. Rejeição encerra o pedido. |
+| `password_hashes` | `user_id, password_hash, is_temporary, temporary_expires_at?, created_at, created_by, updated_at, updated_by` | Uma credencial atual por usuário; PK/FK user_id; Argon2id. |
 | `vectors` | `id, user_id, ciphertext, nonce, key_version, model_version, created_at` | Embedding AES-GCM; chave fora do banco; dimensão/serialização ainda dependem dos modelos. |
 | `authentication_attempts` | `id, user_id, status, stage, token_jti, biometric_failures, created_at, expires_at, completed_at?`; campos adicionais `operation, initiating_session_id?` | Guarda autorização da etapa, não o JWT completo; expiração de cinco minutos por token emitido. |
 | `sessions` | `id, user_id, created_at, expires_at, revoked_at?` | Prazo absoluto de 24 horas. |
 | `refresh_tokens` | `id, session_id, token_hash, created_at, expires_at, used_at?, revoked_at?, replaced_by_id?` | Token aleatório, só hash persistido; rotação atômica, reutilização revoga sessão. |
 | `audit_events` | `id, actor_id?, event, resource_type, resource_id?, success, reason?, request_id, created_at` | Eventos sanitizados; não copiar textos do cofre, motivos exclusivos N3, senhas, tokens ou embeddings para logs administrativos. |
 
-A autorização central consulta papel/permissões e verifica grupo, vínculo, estado e recurso. Permissão configurável não remove as restrições do cofre. ADMIN não recebe acesso técnico automático. Constraints de unicidade entre pedidos/contas e reserva de cargos exigem desenho transacional, além de índices.
+As listas de campos acima e abaixo incluem também o `soft_delete` comum a todas as tabelas. A autorização central consulta somente papéis, permissões e vínculos não excluídos, além de verificar grupo, vínculo, estado e recurso. Permissão configurável não remove as restrições do cofre. ADMIN não recebe acesso técnico automático. Constraints de unicidade entre pedidos/contas e reserva de cargos exigem desenho transacional, além de índices.
 
 ## Laboratório - 6 tabelas
 
@@ -99,7 +113,7 @@ Somente uma validação em andamento por agente: OPEN/RETURNED/IN_REVIEW/REPORTE
 
 Campos: `validation_id, user_id, added_by, added_at`; PK composta `(validation_id,user_id)`, FKs para validação e usuários.
 
-Vínculo representa somente leitura. N1 responsável ou N2 do grupo inclui N1 ativo do mesmo grupo em OPEN/RETURNED. Somente N2 remove. Somente N2 troca o responsável, nesses estados; anterior passa a colaborador leitor. Remoção do vínculo atual não modifica snapshots das entregas. Auditoria registra inclusões/remoções/trocas; não é preciso dar uma flag de edição a cada participante.
+Vínculo representa somente leitura. N1 responsável ou N2 do grupo inclui N1 ativo do mesmo grupo em OPEN/RETURNED. Somente N2 remove. Somente N2 troca o responsável, nesses estados; anterior passa a colaborador leitor. Remoção marca `soft_delete = TRUE` no vínculo atual e não modifica snapshots das entregas. Reincluir restaura a mesma linha, preservando `added_by/at`; a nova ação é registrada em `audit_events`. Auditoria registra inclusões/remoções/trocas; não é preciso dar uma flag de edição a cada participante.
 
 ### 4. `investigation_submissions` - entregas preservadas
 
@@ -107,7 +121,7 @@ Campos: `id, validation_id, submission_number, responsible_user_id, submitted_by
 
 Conteúdo científico e participantes são copiados no envio e preservados. `participants_snapshot` em JSONB é a escolha simples para IDs e identificação histórica necessária, sem credenciais; conteúdo definido abaixo. Número crescente por validação com unicidade `(validation_id,submission_number)`. Devolução N2 em IN_REVIEW registra motivo obrigatório até 1.500, disponível à equipe autorizada, sem sobrescrever a análise recebida. Novo envio gera outra entrega.
 
-### 5. `dossiers` - relatório interno e ficha no cofre
+### 5. `vault` - cofre de relatórios internos e fichas
 
 | Campos | Uso |
 | --- | --- |
@@ -124,9 +138,9 @@ Pedido N3 encerra a anterior, preserva o dossiê e libera nova tarefa. N2 recebe
 
 ### 6. `publications` - cópia pública aprovada
 
-Campos: `id, dossier_id, public_title, public_subtitle?, public_risk_category, public_body, status, published_by, published_at, withdrawn_by?, withdrawn_at?, withdrawal_reason?`.
+Campos: `id, vault_id, public_title, public_subtitle?, public_risk_category, public_body, status, published_by, published_at, withdrawn_by?, withdrawn_at?, withdrawal_reason?`.
 
-FK única privada para dossiê. Publicação copia somente os campos públicos aprovados e passa a validação de origem para PUBLISHED atomicamente. Publico consulta apenas registros publicados; não recebe dossiê, equipe, risco interno, local exato nem motivo de retirada. Retirada preserva conteúdo/histórico e exige motivo até 1.500 consultável somente N3; não reabre validação nem afeta outra tarefa.
+FK única privada para dossiê. Publicação copia somente os campos públicos aprovados e passa a validação de origem para PUBLISHED atomicamente. Público consulta apenas registros publicados e não excluídos; não recebe dossiê, equipe, risco interno, local exato nem motivo de retirada. Retirada preserva conteúdo/histórico e exige motivo até 1.500 consultável somente N3; não reabre validação nem afeta outra tarefa.
 
 ## Relações e garantias
 
@@ -159,9 +173,9 @@ erDiagram
     validations ||--o{ validation_participants : leitores
     users ||--o{ validation_participants : participa
     validations ||--o{ investigation_submissions : entregas
-    validations ||--o| dossiers : relatorio_selado
-    investigation_submissions ||--o| dossiers : entrega_usada
-    dossiers ||--o| publications : copia_publica
+    validations ||--o| vault : relatorio_selado
+    investigation_submissions ||--o| vault : entrega_usada
+    vault ||--o| publications : copia_publica
 ```
 
 A figura mostra relações principais; as várias colunas de autoria também apontam para users. A primeira validação nasce junto do agente, portanto o cadastro completo tem pelo menos uma tarefa. Pedido novo pode ligar um dossiê a uma validação posterior do MESMO agente; esse vínculo é conferido no serviço e na transação.
@@ -172,14 +186,14 @@ O símbolo `?` nas listas significa que o campo pode ficar vazio. Campos de rasc
 
 | Onde | Valores e conferências |
 | --- | --- |
-| users.status | PENDING_ACTIVATION, ACTIVE, DISABLED. Recuperação pode exigir etapa mesmo com conta habilitada; flags controlam emissão da sessão. |
+| users.status | PENDING_ACTIVATION ou ACTIVE. Desativação é somente users.soft_delete = TRUE; uma sessão normal exige ACTIVE, soft_delete = FALSE e etapas de autenticação concluídas. |
 | access_requests.status | PENDING, APPROVED, REJECTED. Hash só PENDING; decisão/autor/data obrigatórios em APPROVED/REJECTED. user_id só APPROVED. |
 | biological_agents.status | ACTIVE ou INACTIVE. Cadastro nasce ACTIVE. |
 | validations.status | OPEN, IN_REVIEW, RETURNED, REPORTED, PUBLISHED, CLOSED. |
 | authentication_attempts.status | PENDING, BLOCKED, COMPLETED, CANCELLED. Prazo expirado é verificado por expires_at; não precisa tarefa cron. |
 | authentication_attempts.stage | ENROLL_FACE, VERIFY_FACE, CHANGE_PASSWORD. |
 | authentication_attempts.operation | LOGIN, ACTIVATION, RECOVERY, PASSWORD_CHANGE. initiating_session_id obrigatório para troca voluntária. |
-| dossiers.decision_status | WAITING_N3, PUBLISHED, RESTRICTED, NEW_VALIDATION_REQUESTED. Uma decisão terminal; não pedir nova tarefa e publicar o mesmo dossiê depois. |
+| vault.decision_status | WAITING_N3, PUBLISHED, RESTRICTED, NEW_VALIDATION_REQUESTED. Uma decisão terminal; não pedir nova tarefa e publicar o mesmo dossiê depois. |
 | publications.status | PUBLISHED ou WITHDRAWN. Retirada não reescreve a decisão histórica do dossiê. |
 | public_risk_category | LOW, MODERATE, HIGH; rótulos baixo, moderado, alto. |
 | closure_cause | N2_CLOSED, N3_RESTRICTED, N3_NEW_VALIDATION. closure_reason só guarda o motivo N2; motivos reservados N3 não são copiados. |
@@ -190,19 +204,19 @@ Snapshot de entrega: lista de `{user_id,name,role_code}` do responsável e dos c
 
 | Garantia | Como proteger |
 | --- | --- |
-| Email único | UNIQUE users.email normalizado; UNIQUE parcial pedido pendente por requested_email; bloqueio transacional por email em todos os fluxos que disputam conta/pedido. |
-| Uma vaga N2/N3 | Bloquear grupo para N2 e posição global para N3; conferir papel/reserva em users antes de aprovar, reativar ou promover. Constraint envolvendo roles precisa migração específica ou trigger; não presumir que índice parcial com JOIN existe. |
-| Uma tarefa ativa por agente | Índice UNIQUE parcial em validations(agent_id) para OPEN/IN_REVIEW/RETURNED/REPORTED, mais bloqueio do agente em criação/envio/decisão/inativação. |
-| Um dossiê/publicação | UNIQUE dossiers.validation_id, dossiers.source_submission_id, dossiers.protocol e publications.dossier_id. |
-| Participação sem duplicata | PK validation_participants(validation_id,user_id); responsável não precisa vínculo de colaborador paralelo. Troca remove vínculo leitor do novo responsável, inclui anterior sem duplicar. |
+| Email único | UNIQUE users.email normalizado; UNIQUE parcial pedido pendente e não excluído por requested_email; bloqueio transacional por email em todos os fluxos que disputam conta/pedido. |
+| Uma vaga N2/N3 | Bloquear grupo para N2 e posição global para N3; conferir papel/reserva em users não excluídos antes de aprovar, reativar ou promover. Constraint envolvendo roles precisa migração específica ou trigger; não presumir que índice parcial com JOIN existe. |
+| Uma tarefa ativa por agente | Índice UNIQUE parcial em validations(agent_id) para OPEN/IN_REVIEW/RETURNED/REPORTED com soft_delete = FALSE, mais bloqueio do agente em criação/envio/decisão/inativação. |
+| Um dossiê/publicação | UNIQUE vault.validation_id, vault.source_submission_id, vault.protocol e publications.vault_id. |
+| Participação sem duplicata | PK validation_participants(validation_id,user_id); responsável não precisa vínculo de colaborador paralelo. Troca exclui logicamente o vínculo leitor do novo responsável e inclui/restaura o anterior sem duplicar. |
 | Uma senha atual | PK/FK password_hashes.user_id. |
 | Refresh sem reutilização | UNIQUE token_hash; bloquear sessão/token e registrar sucessor/used_at na rotação. |
 | Entregas numeradas | UNIQUE (validation_id,submission_number); alocar número dentro do bloqueio da tarefa. |
 | Pedido N3 atendido uma vez | UNIQUE no request_fulfilled_by_validation_id não nulo e previous_validation_id não nulo; bloquear dossiê/agente e gravar ambos os lados em uma transação. Apenas ciclos que atendem pedido usam previous_validation_id. |
-| Imutabilidade | Não permitir alteração dos campos de conteúdo de entrega/dossiê/publicação depois do envio/aprovação; atualizar apenas metadados autorizados. Proteger no serviço e por trigger do banco, com migração administrativa separada. |
+| Imutabilidade | Não permitir alteração dos campos de conteúdo de entrega/dossiê/publicação depois do envio/aprovação; atualizar apenas metadados autorizados e soft_delete, inclusive após decisão final, sem reabrir o fluxo. Proteger no serviço e por trigger do banco, com migração administrativa separada. |
 | Desativação sem tarefa pendente | Bloqueio do agente compartilhado por criação/inativação e conferir estados; CHECK simples não consulta tabela vizinha. |
 
-Sem cascata de exclusão em conta, agente, tarefa, entregas ou dossiês. Auditoria registra atribuição/remoção sem dar acesso ao cofre. Índices de consulta: users(team_id,status), access_requests(requested_by,status), biological_agents(team_id,status), validations(agent_id,status), validations(responsible_user_id,status), validation_participants(user_id), dossiers(decision_status,sent_at), publications(status,published_at). Datas/FKs de autoria opcionais por estado recebem CHECKs na migration inicial.
+Sem cascata de exclusão em conta, agente, tarefa, entregas ou dossiês. Auditoria registra atribuição/remoção sem dar acesso ao cofre. Índices de consulta: users(team_id,status), access_requests(requested_by,status), biological_agents(team_id,status), validations(agent_id,status), validations(responsible_user_id,status), validation_participants(user_id), vault(decision_status,sent_at), publications(status,published_at). Datas/FKs de autoria opcionais por estado recebem CHECKs na migration inicial.
 
 ## Relação com as respostas da API
 

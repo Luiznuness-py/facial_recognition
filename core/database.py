@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -38,6 +39,8 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         await pool.close()
+
+    logging.info("FastAPI iniciado!")
 
 
 async def run_migrations(pool: Pool) -> None:
@@ -80,6 +83,7 @@ async def run_migrations(pool: Pool) -> None:
                     migration_file.name,
                 )
 
+    logging.info("Migrations validadas ou criadas com sucesso!")
 
 async def drop_all_tables(pool: Pool) -> None:
     """Remove o schema público em ambientes de desenvolvimento ou teste."""
@@ -90,3 +94,5 @@ async def drop_all_tables(pool: Pool) -> None:
         async with connection.transaction():
             await connection.execute("DROP SCHEMA public CASCADE")
             await connection.execute("CREATE SCHEMA public")
+
+    logging.info("Todas as tabelas foram deletadas com sucesso!")

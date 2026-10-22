@@ -2,7 +2,7 @@
 
 O projeto é um sistema acadêmico para um laboratório fictício de biossegurança ambiental. Ele controla o acesso das pessoas e acompanha a investigação de amostras com agentes biológicos ainda não identificados, até a decisão sobre divulgar os resultados.
 
-**Este documento descreve o funcionamento planejado.** As funcionalidades ainda precisam ser implementadas e testadas. Os [endpoints](ENDPOINTS.md), o [banco de dados](DATABASE_TARGET.md) e o [exemplo completo](USE_CASES.md) são referências para quem precisar de mais detalhes.
+**Este documento descreve o funcionamento planejado.** As funcionalidades ainda precisam ser implementadas e testadas. Os [endpoints](ENDPOINTS.md), o [banco de dados](DATABASE.md) e o [exemplo completo](USE_CASES.md) são referências para quem precisar de mais detalhes.
 
 ## 1. Quem participa
 
@@ -27,7 +27,7 @@ Nas entradas seguintes, N1, N2 e N3 usam senha e reconhecimento facial, com uma 
 
 Há uma conta por vez no mesmo perfil do navegador. Se Ana estiver conectada e Bruno iniciar a entrada com email e senha corretos, Ana será desconectada naquele perfil, incluindo suas abas. Bruno ainda precisa concluir as etapas para receber acesso. Outros navegadores ou dispositivos não são desconectados por essa troca. A sessão dura no máximo 24 horas.
 
-Todos podem alterar a própria senha, confirmando a senha atual e, quando exigido, o rosto. A alteração encerra todas as sessões e exige nova entrada. Senha esquecida ou problema com o cadastro facial são resolvidos pelo administrador. Desativar uma conta bloqueia seu acesso imediatamente, preservando o histórico; reativá-la exige nova senha temporária, novo cadastro facial quando aplicável e senha definitiva.
+Todos podem alterar a própria senha, confirmando a senha atual e, quando exigido, o rosto. A alteração encerra todas as sessões e exige nova entrada. Senha esquecida ou problema com o cadastro facial são resolvidos pelo administrador. Desativar uma conta usa a exclusão lógica (`soft_delete`), bloqueia seu acesso imediatamente e preserva o histórico. Reativá-la restaura o mesmo cadastro e exige nova senha temporária, novo cadastro facial quando aplicável e senha definitiva. A data da primeira ativação (`activated_at`) é preservada, inclusive após reativações.
 
 ## 3. Como uma investigação acontece
 
@@ -88,6 +88,7 @@ Uma investigação terminada não é reaberta. O N2 pode criar outra, desde que 
 - **Um responsável por investigação:** somente ele edita e envia a análise. Colaboradores apenas leem. Remover um colaborador retira seu acesso atual, sem apagar sua participação nas entregas anteriores.
 - **Cadastro preservado:** o N1 criador, enquanto autorizado, ou o N2 da equipe pode corrigir o cadastro da amostra somente antes da primeira entrega de análise.
 - **Amostras ativas e inativas:** somente o N2 altera essa situação. Não pode inativar uma amostra com investigação em andamento. Inativas continuam disponíveis para consulta autorizada do histórico; precisam ser reativadas para receber novo trabalho.
-- **Histórico mantido:** contas, amostras, entregas, relatórios e notícias não são apagados para eliminar o histórico. Inativar uma amostra ou retirar uma notícia não reabre uma investigação terminada.
+- **Dados preservados:** todas as tabelas da aplicação têm exclusão lógica (`soft_delete`), sem DELETE físico nos fluxos do produto. Registros excluídos ficam fora das consultas normais; restauração depende de permissão e das regras do registro, sem revalidar credenciais antigas ou reabrir decisões encerradas. Contas, amostras, entregas, relatórios e notícias não são apagados para eliminar o histórico. Inativar uma amostra ou retirar uma notícia não reabre uma investigação terminada.
+- **Log de ações:** `audit_events` registra usuário, ação, alvo, resultado, motivo permitido e momento. Não haverá novas tabelas de histórico de alterações no MVP; segredos e conteúdo reservado não entram no log.
 - **Continuidade da equipe:** se um responsável perder acesso, o N2 precisa atribuir outro para o trabalho continuar. Um novo N2 assume os registros de sua equipe; um novo N3 assume o cofre, preservando a autoria anterior.
 - **Limites desta versão:** não há transferência de amostras entre equipes, edição de conteúdo selado, rascunho separado para o N3 ou alteração de notícias já aprovadas.

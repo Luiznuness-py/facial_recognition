@@ -28,6 +28,15 @@ BEGIN
         AND table_name = 'vectors' AND column_name = 'vector') THEN
         RAISE EXCEPTION 'Embedding numérico antigo ainda existe';
     END IF;
+    IF (SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public'
+        AND column_name = 'soft_delete' AND data_type = 'boolean'
+        AND is_nullable = 'NO' AND column_default = 'false') <> 18 THEN
+        RAISE EXCEPTION 'As 18 tabelas da aplicação devem ter soft_delete obrigatório com padrão false';
+    END IF;
+    IF EXISTS (SELECT FROM information_schema.columns WHERE table_schema = 'public'
+        AND table_name = 'users' AND column_name IN ('disabled_at', 'disabled_by')) THEN
+        RAISE EXCEPTION 'Desativação deve usar somente soft_delete';
+    END IF;
 END;
 $$;
 
@@ -46,6 +55,19 @@ SELECT pg_temp.expect_failure($q$INSERT INTO users(name,email,role_id)
     SELECT name,email,role_id FROM users LIMIT 1$q$, '23505');
 SELECT pg_temp.expect_failure($q$INSERT INTO users(name,email,role_id)
     SELECT name,'UPPER@teste.exemplo',role_id FROM users LIMIT 1$q$, '23514');
+SELECT pg_temp.expect_failure($q$UPDATE users SET status='ACTIVE'$q$, '23514');
+SELECT pg_temp.expect_failure($q$UPDATE users SET status='DISABLED'$q$, '23514');
+UPDATE users SET status='ACTIVE', activated_at='2026-01-01 12:00:00+00';
+UPDATE users SET soft_delete=TRUE;
+UPDATE users SET soft_delete=FALSE;
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM users WHERE status <> 'ACTIVE'
+        OR activated_at IS DISTINCT FROM TIMESTAMPTZ '2026-01-01 12:00:00+00') THEN
+        RAISE EXCEPTION 'Desativação/restauração não deve modificar a primeira ativação';
+    END IF;
+END;
+$$;
 
 INSERT INTO access_requests(requested_name, requested_email, temporary_password_hash,
     requested_by, requested_role_id, requested_team_id)
@@ -56,6 +78,11 @@ SELECT pg_temp.expect_failure($q$INSERT INTO access_requests(requested_name,requ
     temporary_password_hash,requested_by,requested_role_id)
     SELECT requested_name,requested_email,temporary_password_hash,requested_by,requested_role_id
     FROM access_requests$q$, '23505');
+UPDATE access_requests SET soft_delete=TRUE;
+INSERT INTO access_requests(requested_name,requested_email,temporary_password_hash,requested_by,requested_role_id)
+    SELECT requested_name,requested_email,temporary_password_hash,requested_by,requested_role_id FROM access_requests;
+SELECT pg_temp.expect_failure($q$UPDATE access_requests SET soft_delete=FALSE WHERE soft_delete$q$, '23505');
+UPDATE access_requests SET soft_delete=TRUE WHERE NOT soft_delete;
 SELECT pg_temp.expect_failure($q$UPDATE access_requests SET status='APPROVED'$q$, '23514');
 UPDATE access_requests SET status='REJECTED', temporary_password_hash=NULL,
     decided_by='00000000-0000-0000-0000-000000000020', decided_at=NOW(), rejection_reason='Teste';
@@ -71,6 +98,15 @@ SELECT pg_temp.expect_failure($q$UPDATE vectors SET nonce=decode('00','hex')$q$,
 INSERT INTO sessions(id,user_id,expires_at) VALUES
     ('00000000-0000-0000-0000-000000000030','00000000-0000-0000-0000-000000000021',NOW()+INTERVAL '24 hours');
 SELECT pg_temp.expect_failure($q$UPDATE sessions SET expires_at=created_at+INTERVAL '25 hours'$q$, '23514');
+UPDATE sessions SET revoked_at=NOW(), soft_delete=TRUE;
+UPDATE sessions SET soft_delete=FALSE;
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM sessions WHERE revoked_at IS NULL OR expires_at <> created_at+INTERVAL '24 hours') THEN
+        RAISE EXCEPTION 'Restaurar sessão não deve limpar revogação nem renovar validade';
+    END IF;
+END;
+$$;
 SELECT pg_temp.expect_failure($q$INSERT INTO authentication_attempts(user_id,stage,token_jti,expires_at,operation)
     VALUES ('00000000-0000-0000-0000-000000000021','VERIFY_FACE',gen_random_uuid(),NOW()+INTERVAL '5 minutes','PASSWORD_CHANGE')$q$, '23514');
 INSERT INTO authentication_attempts(user_id,stage,token_jti,expires_at,operation,initiating_session_id)
@@ -91,6 +127,12 @@ VALUES ('00000000-0000-0000-0000-000000000050','00000000-0000-0000-0000-00000000
     '00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000000021','00000000-0000-0000-0000-000000000021');
 SELECT pg_temp.expect_failure($q$INSERT INTO validations(agent_id,team_id,responsible_user_id,created_by)
     SELECT agent_id,team_id,responsible_user_id,created_by FROM validations$q$, '23505');
+UPDATE validations SET soft_delete=TRUE;
+INSERT INTO validations(agent_id,team_id,responsible_user_id,created_by)
+    SELECT agent_id,team_id,responsible_user_id,created_by FROM validations;
+SELECT pg_temp.expect_failure($q$UPDATE validations SET soft_delete=FALSE WHERE soft_delete$q$, '23505');
+UPDATE validations SET soft_delete=TRUE WHERE NOT soft_delete;
+UPDATE validations SET soft_delete=FALSE WHERE id='00000000-0000-0000-0000-000000000050';
 SELECT pg_temp.expect_failure($q$UPDATE validations SET status='IN_REVIEW'$q$, '23514');
 SELECT pg_temp.expect_failure($q$UPDATE validations SET estimated_risk_percentage=100.01$q$, '23514');
 UPDATE validations SET status='IN_REVIEW', assessments_performed='Avaliação', observed_results='Resultado',
@@ -98,7 +140,7 @@ UPDATE validations SET status='IN_REVIEW', assessments_performed='Avaliação', 
 INSERT INTO investigation_submissions(id,validation_id,submission_number,responsible_user_id,submitted_by,
     assessments_performed,observed_results,technical_opinion,recommendation,participants_snapshot)
 SELECT '00000000-0000-0000-0000-000000000060',id,1,responsible_user_id,responsible_user_id,
-    assessments_performed,observed_results,technical_opinion,recommendation,'[]'::jsonb FROM validations;
+    assessments_performed,observed_results,technical_opinion,recommendation,'[]'::jsonb FROM validations WHERE NOT soft_delete;
 SELECT pg_temp.expect_failure($q$INSERT INTO investigation_submissions(validation_id,submission_number,
     responsible_user_id,submitted_by,assessments_performed,observed_results,technical_opinion,recommendation,participants_snapshot)
     SELECT validation_id,submission_number,responsible_user_id,submitted_by,assessments_performed,
@@ -108,20 +150,26 @@ SELECT pg_temp.expect_failure($q$DELETE FROM investigation_submissions$q$, '2351
 UPDATE investigation_submissions SET returned_by='00000000-0000-0000-0000-000000000020',
     returned_at=NOW(),return_reason='Complementar';
 SELECT pg_temp.expect_failure($q$UPDATE investigation_submissions SET return_reason='Outro'$q$, '23514');
+UPDATE investigation_submissions SET soft_delete=TRUE;
+UPDATE investigation_submissions SET soft_delete=FALSE;
+SELECT pg_temp.expect_failure($q$UPDATE investigation_submissions SET soft_delete=TRUE,technical_opinion='Alteração'$q$, '23514');
 
-INSERT INTO dossiers(id,validation_id,source_submission_id,protocol,sent_by,received_snapshot,title,
+INSERT INTO vault(id,validation_id,source_submission_id,protocol,sent_by,received_snapshot,title,
     final_conclusion,final_risk_percentage,public_title,public_risk_category,public_body)
 VALUES ('00000000-0000-0000-0000-000000000070','00000000-0000-0000-0000-000000000050',
     '00000000-0000-0000-0000-000000000060','PROTOCOLO-TESTE','00000000-0000-0000-0000-000000000020',
     '{}','Relatório','Conclusão',35,'Notícia','MODERATE','Texto público fictício');
-SELECT pg_temp.expect_failure($q$UPDATE dossiers SET final_conclusion='Alterada'$q$, '23514');
-SELECT pg_temp.expect_failure($q$DELETE FROM dossiers$q$, '23514');
-SELECT pg_temp.expect_failure($q$UPDATE dossiers SET decision_status='RESTRICTED',
+SELECT pg_temp.expect_failure($q$UPDATE vault SET final_conclusion='Alterada'$q$, '23514');
+SELECT pg_temp.expect_failure($q$DELETE FROM vault$q$, '23514');
+SELECT pg_temp.expect_failure($q$UPDATE vault SET decision_status='RESTRICTED',
     decided_by='00000000-0000-0000-0000-000000000020',decided_at=NOW()$q$, '23514');
-UPDATE dossiers SET decision_status='PUBLISHED',decided_by='00000000-0000-0000-0000-000000000020',decided_at=NOW();
-SELECT pg_temp.expect_failure($q$UPDATE dossiers SET decision_status='RESTRICTED',restricted_reason='Sigilo'$q$, '23514');
-INSERT INTO publications(dossier_id,public_title,public_risk_category,public_body,published_by)
-SELECT id,public_title,public_risk_category,public_body,sent_by FROM dossiers;
+UPDATE vault SET decision_status='PUBLISHED',decided_by='00000000-0000-0000-0000-000000000020',decided_at=NOW();
+SELECT pg_temp.expect_failure($q$UPDATE vault SET decision_status='RESTRICTED',restricted_reason='Sigilo'$q$, '23514');
+UPDATE vault SET soft_delete=TRUE;
+UPDATE vault SET soft_delete=FALSE;
+SELECT pg_temp.expect_failure($q$UPDATE vault SET soft_delete=TRUE,final_conclusion='Alterada'$q$, '23514');
+INSERT INTO publications(vault_id,public_title,public_risk_category,public_body,published_by)
+SELECT id,public_title,public_risk_category,public_body,sent_by FROM vault;
 SELECT pg_temp.expect_failure($q$UPDATE publications SET public_body='Alterado'$q$, '23514');
 SELECT pg_temp.expect_failure($q$UPDATE publications SET status='WITHDRAWN'$q$, '23514');
 UPDATE publications SET status='WITHDRAWN',withdrawn_by='00000000-0000-0000-0000-000000000020',
@@ -129,10 +177,25 @@ UPDATE publications SET status='WITHDRAWN',withdrawn_by='00000000-0000-0000-0000
 SELECT pg_temp.expect_failure($q$UPDATE publications SET status='PUBLISHED',withdrawn_by=NULL,
     withdrawn_at=NULL,withdrawal_reason=NULL$q$, '23514');
 SELECT pg_temp.expect_failure($q$DELETE FROM publications$q$, '23514');
+UPDATE publications SET soft_delete=TRUE;
+UPDATE publications SET soft_delete=FALSE;
+SELECT pg_temp.expect_failure($q$UPDATE publications SET soft_delete=TRUE,public_body='Alterado'$q$, '23514');
+
+INSERT INTO audit_events(actor_id,event,resource_type,resource_id,success,reason,request_id)
+VALUES ('00000000-0000-0000-0000-000000000020','USER_DEACTIVATED','users',
+    '00000000-0000-0000-0000-000000000021',TRUE,'Teste',gen_random_uuid());
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM audit_events WHERE event='USER_DEACTIVATED'
+        AND resource_type='users' AND success AND NOT soft_delete) THEN
+        RAISE EXCEPTION 'Log genérico deve preservar ator, ação, recurso e resultado';
+    END IF;
+END;
+$$;
 
 UPDATE validations SET status='PUBLISHED';
 INSERT INTO validations(agent_id,team_id,responsible_user_id,created_by)
-SELECT agent_id,team_id,responsible_user_id,created_by FROM validations;
+SELECT agent_id,team_id,responsible_user_id,created_by FROM validations WHERE NOT soft_delete;
 SELECT pg_temp.expect_failure($q$DELETE FROM users WHERE id='00000000-0000-0000-0000-000000000021'$q$, '23503');
 
 ROLLBACK;
