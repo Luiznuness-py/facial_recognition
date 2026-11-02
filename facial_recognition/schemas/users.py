@@ -25,7 +25,7 @@ from facial_recognition.schemas.base_model import (
 UserStatus = Literal["PENDING_ACTIVATION", "ACTIVE"]
 UserName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
-NewPassword = Annotated[SecretStr, Field(min_length=8, max_length=30)]
+NewPassword = Annotated[SecretStr, Field(min_length=8, max_length=128)]
 
 
 class UserSummary(BaseSchema):
@@ -106,7 +106,17 @@ class UserUpdate(BaseSchema):
 
     @model_validator(mode="after")
     def validate_patch(self) -> Self:
-        """Rejeita alterações vazias e null em campos obrigatórios da conta."""
+        """Rejeita alterações vazias e null em campos obrigatórios da conta.
+
+        model_fields_set distingue campos omitidos de null explícito; apenas os campos
+        presentes serão aplicados pela rota.
+
+        Returns:
+            Self: Retorna o próprio PATCH com o conjunto de campos enviados.
+
+        Raises:
+            ValueError: Se o PATCH está vazio ou algum campo informado tem valor None.
+        """
         if not self.model_fields_set:
             raise ValueError("Informe ao menos um campo para alterar.")
         for field in self.model_fields_set:
@@ -136,7 +146,7 @@ class UserReactivate(BaseSchema):
     preserva activated_at. A senha nunca deve ser retornada nem registrada em log.
 
     Attributes:
-        temporary_password: Nova senha temporária de 8 a 30 caracteres.
+        temporary_password: Nova senha temporária de 8 a 128 caracteres.
         reason: Justificativa não vazia, até 1.500 caracteres.
     """
 
@@ -154,7 +164,7 @@ class UserRecovery(BaseSchema):
     Attributes:
         mode: Recuperação de senha, biometria ou ambas.
         reason: Justificativa administrativa, até 1.500 caracteres.
-        temporary_password: Senha de 8 a 30 caracteres, quando exigida pelo modo.
+        temporary_password: Senha de 8 a 128 caracteres, quando exigida pelo modo.
     """
 
     mode: Literal["PASSWORD", "BIOMETRIC", "BOTH"]
@@ -163,7 +173,18 @@ class UserRecovery(BaseSchema):
 
     @model_validator(mode="after")
     def validate_recovery_password(self) -> Self:
-        """Exige ou rejeita a senha conforme o modo de recuperação solicitado."""
+        """Exige ou rejeita a senha conforme o modo de recuperação solicitado.
+
+        Não redefine credenciais; apenas confere a combinação dos campos antes da
+        autorização e da gravação.
+
+        Returns:
+            Self: Retorna a requisição coerente com o modo de recuperação.
+
+        Raises:
+            ValueError: Se BIOMETRIC contém temporary_password, mesmo null, ou PASSWORD/BOTH
+                não recebem uma senha.
+        """
         if self.mode == "BIOMETRIC":
             if "temporary_password" in self.model_fields_set:
                 raise ValueError("Recuperação biométrica não recebe senha temporária.")

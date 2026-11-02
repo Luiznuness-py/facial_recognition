@@ -18,11 +18,11 @@ class LoginRequest(BaseSchema):
 
     Attributes:
         email: Endereço válido normalizado para busca da conta.
-        password: Senha não vazia, com até 30 caracteres e sem strip.
+        password: Senha não vazia, com até 128 caracteres e sem strip.
     """
 
     email: NormalizedEmail
-    password: SecretStr = Field(min_length=1, max_length=30)
+    password: SecretStr = Field(min_length=1, max_length=128)
 
 
 class SessionResponse(BaseSchema):

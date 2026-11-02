@@ -24,7 +24,7 @@ class AccessRequestCreate(BaseSchema):
 
     Attributes:
         name, email: Identificação normalizada da pessoa solicitada.
-        temporary_password: Senha temporária de 8 a 30 caracteres, sem strip.
+        temporary_password: Senha temporária de 8 a 128 caracteres, sem strip.
         role_code, team_id: Escolhas opcionais, somente quando o ator puder fazê-las.
     """
 

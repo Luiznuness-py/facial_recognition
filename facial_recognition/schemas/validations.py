@@ -7,7 +7,7 @@ from typing import Literal, Self
 
 from pydantic import Field, model_validator
 
-from schemas.sc_vault import NewValidationRequestResponse
+from facial_recognition.schemas.vault import NewValidationRequestResponse
 from facial_recognition.schemas.users import UserSummary
 from facial_recognition.schemas.biological_agents import BiologicalAgentSummary
 from facial_recognition.schemas.validation_participants import ValidationParticipantResponse
@@ -55,7 +55,17 @@ class ValidationAnalysisUpdate(BaseSchema):
 
     @model_validator(mode="after")
     def validate_patch(self) -> Self:
-        """Rejeita um PATCH sem campos, mantendo a distinção entre omissão e null."""
+        """Rejeita um PATCH sem campos, mantendo a distinção entre omissão e null.
+
+        Valores nulos permitidos pelos campos continuam válidos; os limites de texto/números
+        são validados pelos tipos do schema.
+
+        Returns:
+            Self: Retorna o PATCH com as alterações fornecidas pelo cliente.
+
+        Raises:
+            ValueError: Se nenhum campo foi enviado.
+        """
         if not self.model_fields_set:
             raise ValueError("Informe ao menos um campo para alterar.")
         return self

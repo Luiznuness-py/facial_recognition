@@ -1,3 +1,4 @@
+"""Contratos comuns de entrada, paginação, auditoria e envelope HTTP."""
 from uuid import UUID
 from datetime import datetime
 from typing import Any, Generic, TypeVar, Annotated

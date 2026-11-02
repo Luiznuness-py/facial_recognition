@@ -12,7 +12,7 @@ class PasswordCompleteRequest(BaseSchema):
     """Recebe a nova senha em ativação ou conclusão de troca voluntária.
 
     Atende /auth/password/complete e /auth/password-change/complete. Preserva
-    espaços, valida 8 a 30 caracteres e confere a confirmação. O serviço valida
+    espaços, valida 8 a 128 caracteres e confere a confirmação. O serviço valida
     credenciais de etapa, senhas previsíveis, hash e revogação das sessões.
 
     Attributes:
@@ -25,7 +25,17 @@ class PasswordCompleteRequest(BaseSchema):
 
     @model_validator(mode="after")
     def validate_confirmation(self) -> Self:
-        """Rejeita senhas diferentes sem normalizar nem expor os valores."""
+        """Rejeita senhas diferentes sem normalizar nem expor os valores.
+
+        Compara o conteúdo exato de SecretStr sem aparar espaços ou incluir os valores no
+        erro.
+
+        Returns:
+            Self: Retorna a requisição com a confirmação conferida.
+
+        Raises:
+            ValueError: Se as duas senhas diferem.
+        """
         if self.new_password.get_secret_value() != self.password_confirmation.get_secret_value():
             raise ValueError("A confirmação da senha não corresponde à nova senha.")
         return self
@@ -41,4 +51,4 @@ class PasswordChangeStartRequest(BaseSchema):
         current_password: Senha atual não vazia, preservada sem strip.
     """
 
-    current_password: SecretStr = Field(min_length=1, max_length=30)
+    current_password: SecretStr = Field(min_length=1, max_length=128)

@@ -21,15 +21,15 @@ Para entender o funcionamento sem detalhes técnicos, leia [Como funciona o sist
 | `/admin/*` | Consultar auditoria administrativa, papéis e permissões. |
 | `/health` | Conferir se o processo responde. |
 
-Todos os endereços têm o prefixo `/api/v1`. Os contratos abaixo detalham quem pode chamar, os dados recebidos, as verificações e a resposta. Os complementos de contrato também fazem parte da definição da rota.
+Os endereços de negócio têm o prefixo `/api/v1`; o health check público fica em `/health`. Os contratos abaixo detalham quem pode chamar, os dados recebidos, as verificações e a resposta. Os complementos de contrato também fazem parte da definição da rota.
 
 ## 1. Como chamamos a API
 
-Todos os caminhos abaixo começam com `/api/v1`. Listas paginadas recebem `page` (padrão 1, mínimo 1), `per_page` (padrão 20, de 1 a 100) e os filtros descritos; respondem `{items,total}`. O serviço calcula o deslocamento por `(page - 1) * per_page`. Catálogos explicitamente sem paginação retornam uma lista simples. Total respeita os mesmos acessos. IDs são UUIDs; datas UTC com fuso; campo desconhecido é rejeitado. Campos vazios de motivo/texto obrigatório são inválidos.
+Os caminhos abaixo começam com `/api/v1`, exceto `/health`. Listas paginadas recebem `page` (padrão 1, mínimo 1), `per_page` (padrão 20, de 1 a 100) e os filtros descritos; respondem `{items,total}`. O serviço calcula o deslocamento por `(page - 1) * per_page`. Catálogos explicitamente sem paginação retornam uma lista simples. Total respeita os mesmos acessos. IDs são UUIDs; datas UTC com fuso; campo desconhecido é rejeitado. Campos vazios de motivo/texto obrigatório são inválidos.
 
 Toda rota privada usa Access e conta/sessão habilitada, salvo as etapas de autenticação explicitadas. Toda alteração usa CSRF. A seção abaixo diz por que existe, quem usa, entrada, conferência e resposta de cada rota.
 
-As saídas indicadas abaixo representam o campo `data` de [ApiResponse](../schemas/sc_base_model.py#L126). Em sucesso, use `success=true` e `error=null`; em falha, `success=false` e `data=null`. Respostas 204 não usam envelope. [ApiError](../schemas/sc_base_model.py#L108) define o erro. Essa coerência deve ser aplicada pelas rotas; a classe base não a impõe automaticamente.
+As saídas indicadas abaixo representam o campo `data` de [ApiResponse](../facial_recognition/schemas/base_model.py#L127). Em sucesso, use `success=true` e `error=null`; em falha, `success=false` e `data=null`. Respostas 204 não usam envelope. [ApiError](../facial_recognition/schemas/base_model.py#L109) define o erro. Essa coerência deve ser aplicada pelas rotas; a classe base não a impõe automaticamente.
 
 Os exemplos antigos resumidos nas tabelas ilustram partes de `data`, não objetos completos para copiar. As classes vinculadas são a referência dos campos obrigatórios. UUIDs de caminho, cookies e cabeçalhos são validados nas dependências da rota; não são corpos JSON. Schemas `Query` e `PaginationParams` devem ser usados como parâmetros de consulta.
 
@@ -39,7 +39,7 @@ Os exemplos antigos resumidos nas tabelas ilustram partes de `data`, não objeto
 
 ### `POST /auth/login`
 
-- **Schemas — `POST /auth/login`:** entrada (corpo): [LoginRequest](../schemas/sc_sessions.py#L12); saída: [AuthenticationStepResponse](../schemas/sc_authentication_attempts.py#L13) ou [SessionResponse](../schemas/sc_sessions.py#L28)
+- **Schemas — `POST /auth/login`:** entrada (corpo): [LoginRequest](../facial_recognition/schemas/sessions.py#L12); saída: [AuthenticationStepResponse](../facial_recognition/schemas/authentication_attempts.py#L13) ou [SessionResponse](../facial_recognition/schemas/sessions.py#L28)
 
 | Método | Path | Descrição | Parm. Obrigatórios | Exemplo de Resposta |
 |--------|------|-----------|------------------|----------------------|
@@ -54,7 +54,7 @@ Confere email e senha e escolhe a próxima etapa. Existe para iniciar o acesso s
 
 ### `POST /auth/biometric/enroll`
 
-- **Schemas — `POST /auth/biometric/enroll`:** entrada (corpo): `multipart/form-data`: `frames: list[UploadFile]`; limites de upload aplicados na rota.; saída: [AuthenticationStepResponse](../schemas/sc_authentication_attempts.py#L13) ou [SessionResponse](../schemas/sc_sessions.py#L28)
+- **Schemas — `POST /auth/biometric/enroll`:** entrada (corpo): `multipart/form-data`: `frames: list[UploadFile]`; limites de upload aplicados na rota.; saída: [AuthenticationStepResponse](../facial_recognition/schemas/authentication_attempts.py#L13) ou [SessionResponse](../facial_recognition/schemas/sessions.py#L28)
 
 | Método | Path | Descrição | Parm. Obrigatórios | Exemplo de Resposta |
 |--------|------|-----------|------------------|----------------------|
@@ -69,7 +69,7 @@ Cadastra a face quando existe autorização de primeiro acesso ou recuperação.
 
 ### `POST /auth/biometric`
 
-- **Schemas — `POST /auth/biometric`:** entrada (corpo): `multipart/form-data`: `frames: list[UploadFile]`; limites de upload aplicados na rota.; saída: [AuthenticationStepResponse](../schemas/sc_authentication_attempts.py#L13) ou [SessionResponse](../schemas/sc_sessions.py#L28)
+- **Schemas — `POST /auth/biometric`:** entrada (corpo): `multipart/form-data`: `frames: list[UploadFile]`; limites de upload aplicados na rota.; saída: [AuthenticationStepResponse](../facial_recognition/schemas/authentication_attempts.py#L13) ou [SessionResponse](../facial_recognition/schemas/sessions.py#L28)
 
 | Método | Path | Descrição | Parm. Obrigatórios | Exemplo de Resposta |
 |--------|------|-----------|------------------|----------------------|
@@ -84,7 +84,7 @@ Confirma a identidade e a presença real da pessoa esperada. É a segunda etapa 
 
 ### `POST /auth/password/complete`
 
-- **Schemas — `POST /auth/password/complete`:** entrada (corpo): [PasswordCompleteRequest](../schemas/sc_password_hashes.py#L11); saída: [SessionResponse](../schemas/sc_sessions.py#L28)
+- **Schemas — `POST /auth/password/complete`:** entrada (corpo): [PasswordCompleteRequest](../facial_recognition/schemas/password_hashes.py#L11); saída: [SessionResponse](../facial_recognition/schemas/sessions.py#L28)
 
 | Método | Path | Descrição | Parm. Obrigatórios | Exemplo de Resposta |
 |--------|------|-----------|------------------|----------------------|
@@ -99,7 +99,7 @@ Finaliza a ativação ou recuperação com uma senha definitiva. Só então libe
 
 ### `POST /auth/refresh`
 
-- **Schemas — `POST /auth/refresh`:** entrada: Sem corpo JSON; saída: [RefreshTokenResponse](../schemas/sc_refresh_tokens.py#L8)
+- **Schemas — `POST /auth/refresh`:** entrada: Sem corpo JSON; saída: [RefreshTokenResponse](../facial_recognition/schemas/refresh_tokens.py#L8)
 
 | Método | Path | Descrição | Parm. Obrigatórios | Exemplo de Resposta |
 |--------|------|-----------|------------------|----------------------|
@@ -129,7 +129,7 @@ Encerra o contexto de acesso e limpa os cookies para que Sair tenha efeito no se
 
 ### `GET /auth/me`
 
-- **Schemas — `GET /auth/me`:** entrada: Sem corpo JSON; saída: [CurrentUserResponse](../schemas/sc_users.py#L209)
+- **Schemas — `GET /auth/me`:** entrada: Sem corpo JSON; saída: [CurrentUserResponse](../facial_recognition/schemas/users.py#L230)
 
 Diz à tela quem está autenticado e quais menus mostrar. Não é uma autorização para confiar apenas no frontend.
 
@@ -140,7 +140,7 @@ Diz à tela quem está autenticado e quais menus mostrar. Não é uma autorizaç
 
 ### `POST /access-requests`
 
-- **Schemas — `POST /access-requests`:** entrada (corpo): [AccessRequestCreate](../schemas/sc_access_requests.py#L18); saída: [AccessRequestResponse](../schemas/sc_access_requests.py#L38)
+- **Schemas — `POST /access-requests`:** entrada (corpo): [AccessRequestCreate](../facial_recognition/schemas/access_requests.py#L18); saída: [AccessRequestResponse](../facial_recognition/schemas/access_requests.py#L38)
 
 | Método | Path | Descrição | Parm. Obrigatórios | Exemplo de Resposta |
 |--------|------|-----------|------------------|----------------------|
@@ -155,7 +155,7 @@ Permite que N2/N3 solicitem acesso e que ADMIN cadastre diretamente, sem abrir c
 
 ### `GET /access-requests`
 
-- **Schemas — `GET /access-requests`:** entrada (consulta): [AccessRequestQuery](../schemas/sc_access_requests.py#L79); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [AccessRequestResponse](../schemas/sc_access_requests.py#L38)
+- **Schemas — `GET /access-requests`:** entrada (consulta): [AccessRequestQuery](../facial_recognition/schemas/access_requests.py#L79); saída: [ListResponse](../facial_recognition/schemas/base_model.py#L91) de [AccessRequestResponse](../facial_recognition/schemas/access_requests.py#L38)
 
 | Método | Path | Descrição | Parm. Obrigatórios | Exemplo de Resposta |
 |--------|------|-----------|------------------|----------------------|
@@ -170,7 +170,7 @@ Alimenta a lista de solicitações que o solicitante acompanha ou ADMIN decide.
 
 ### `GET /access-requests/{id}`
 
-- **Schemas — `GET /access-requests/{id}`:** entrada: Sem corpo JSON; saída: [AccessRequestResponse](../schemas/sc_access_requests.py#L38)
+- **Schemas — `GET /access-requests/{id}`:** entrada: Sem corpo JSON; saída: [AccessRequestResponse](../facial_recognition/schemas/access_requests.py#L38)
 
 Mostra os dados e a decisão de um pedido autorizado, inclusive o motivo de rejeição.
 
@@ -181,7 +181,7 @@ Mostra os dados e a decisão de um pedido autorizado, inclusive o motivo de reje
 
 ### `POST /access-requests/{id}/approve`
 
-- **Schemas — `POST /access-requests/{id}/approve`:** entrada: Sem corpo JSON; saída: [AccessRequestResponse](../schemas/sc_access_requests.py#L38)
+- **Schemas — `POST /access-requests/{id}/approve`:** entrada: Sem corpo JSON; saída: [AccessRequestResponse](../facial_recognition/schemas/access_requests.py#L38)
 
 Cria a conta aprovada e reserva a posição N2/N3, iniciando a validade da temporária.
 
@@ -192,7 +192,7 @@ Cria a conta aprovada e reserva a posição N2/N3, iniciando a validade da tempo
 
 ### `POST /access-requests/{id}/reject`
 
-- **Schemas — `POST /access-requests/{id}/reject`:** entrada (corpo): [AccessRequestReject](../schemas/sc_access_requests.py#L66); saída: [AccessRequestResponse](../schemas/sc_access_requests.py#L38)
+- **Schemas — `POST /access-requests/{id}/reject`:** entrada (corpo): [AccessRequestReject](../facial_recognition/schemas/access_requests.py#L66); saída: [AccessRequestResponse](../facial_recognition/schemas/access_requests.py#L38)
 
 Encerra o pedido com explicação, sem criar conta nem manter seu hash temporário.
 
@@ -203,8 +203,8 @@ Encerra o pedido com explicação, sem criar conta nem manter seu hash temporár
 
 ### `GET /users` e `GET /users/{id}`
 
-- **Schemas — `GET /users`:** entrada (consulta): [UserQuery](../schemas/sc_users.py#L175); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [UserResponse](../schemas/sc_users.py#L46)
-- **Schemas — `GET /users/{id}`:** entrada: Sem corpo JSON; saída: [UserResponse](../schemas/sc_users.py#L46)
+- **Schemas — `GET /users`:** entrada (consulta): [UserQuery](../facial_recognition/schemas/users.py#L196); saída: [ListResponse](../facial_recognition/schemas/base_model.py#L91) de [UserResponse](../facial_recognition/schemas/users.py#L46)
+- **Schemas — `GET /users/{id}`:** entrada: Sem corpo JSON; saída: [UserResponse](../facial_recognition/schemas/users.py#L46)
 
 Permite ao administrador localizar e consultar contas sem ler faces ou conteúdo do laboratório.
 
@@ -215,7 +215,7 @@ Permite ao administrador localizar e consultar contas sem ler faces ou conteúdo
 
 ### `PATCH /users/{id}`
 
-- **Schemas — `PATCH /users/{id}`:** entrada (corpo): [UserUpdate](../schemas/sc_users.py#L88); saída: [UserResponse](../schemas/sc_users.py#L46)
+- **Schemas — `PATCH /users/{id}`:** entrada (corpo): [UserUpdate](../facial_recognition/schemas/users.py#L88); saída: [UserResponse](../facial_recognition/schemas/users.py#L46)
 
 Permite ao administrador corrigir dados institucionais e papel/grupo mantendo a identidade e a história.
 
@@ -226,7 +226,7 @@ Permite ao administrador corrigir dados institucionais e papel/grupo mantendo a 
 
 ### `POST /users/{id}/deactivate`
 
-- **Schemas — `POST /users/{id}/deactivate`:** entrada (corpo): [UserDeactivate](../schemas/sc_users.py#L118); saída: [UserResponse](../schemas/sc_users.py#L46)
+- **Schemas — `POST /users/{id}/deactivate`:** entrada (corpo): [UserDeactivate](../facial_recognition/schemas/users.py#L128); saída: [UserResponse](../facial_recognition/schemas/users.py#L46)
 
 Bloqueia uma pessoa e suas credenciais sem apagar registros anteriores.
 
@@ -237,7 +237,7 @@ Bloqueia uma pessoa e suas credenciais sem apagar registros anteriores.
 
 ### `POST /users/{id}/reactivate`
 
-- **Schemas — `POST /users/{id}/reactivate`:** entrada (corpo): [UserReactivate](../schemas/sc_users.py#L131); saída: [UserActivationResponse](../schemas/sc_users.py#L73)
+- **Schemas — `POST /users/{id}/reactivate`:** entrada (corpo): [UserReactivate](../facial_recognition/schemas/users.py#L141); saída: [UserActivationResponse](../facial_recognition/schemas/users.py#L73)
 
 Permite voltar ao sistema com nova senha e biometria, sem criar outra identidade ou perder história.
 
@@ -248,7 +248,7 @@ Permite voltar ao sistema com nova senha e biometria, sem criar outra identidade
 
 ### `POST /users/{id}/activation/revalidate`
 
-- **Schemas — `POST /users/{id}/activation/revalidate`:** entrada: Sem corpo JSON; saída: [UserActivationResponse](../schemas/sc_users.py#L73)
+- **Schemas — `POST /users/{id}/activation/revalidate`:** entrada: Sem corpo JSON; saída: [UserActivationResponse](../facial_recognition/schemas/users.py#L73)
 
 Renova a mesma senha temporária quando a pessoa não terminou a ativação dentro de 24 horas.
 
@@ -259,7 +259,7 @@ Renova a mesma senha temporária quando a pessoa não terminou a ativação dent
 
 ### `POST /users/{id}/recovery`
 
-- **Schemas — `POST /users/{id}/recovery`:** entrada (corpo): [UserRecovery](../schemas/sc_users.py#L147); saída: [UserActivationResponse](../schemas/sc_users.py#L73)
+- **Schemas — `POST /users/{id}/recovery`:** entrada (corpo): [UserRecovery](../facial_recognition/schemas/users.py#L157); saída: [UserActivationResponse](../facial_recognition/schemas/users.py#L73)
 
 Autoriza a recuperação de senha, rosto ou ambos. Separa recuperação administrada de um cadastro facial livre.
 
@@ -270,7 +270,7 @@ Autoriza a recuperação de senha, rosto ou ambos. Separa recuperação administ
 
 ### `GET /teams`
 
-- **Schemas — `GET /teams`:** entrada (consulta): [PaginationParams](../schemas/sc_base_model.py#L73); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [TeamResponse](../schemas/sc_teams.py#L8)
+- **Schemas — `GET /teams`:** entrada (consulta): [PaginationParams](../facial_recognition/schemas/base_model.py#L74); saída: [ListResponse](../facial_recognition/schemas/base_model.py#L91) de [TeamResponse](../facial_recognition/schemas/teams.py#L8)
 
 Fornece os grupos para seleção autorizada em formulários de conta; não transfere agentes entre grupos.
 
@@ -281,7 +281,7 @@ Fornece os grupos para seleção autorizada em formulários de conta; não trans
 
 ### `POST /biological-agents`
 
-- **Schemas — `POST /biological-agents`:** entrada (corpo): [BiologicalAgentCreate](../schemas/sc_biological_agents.py#L14); saída: [BiologicalAgentCreateResponse](../schemas/sc_biological_agents.py#L184)
+- **Schemas — `POST /biological-agents`:** entrada (corpo): [BiologicalAgentCreate](../facial_recognition/schemas/biological_agents.py#L14); saída: [BiologicalAgentCreateResponse](../facial_recognition/schemas/biological_agents.py#L221)
 
 Registra a amostra e cria a primeira tarefa do N1, sem misturar o cadastro com a conclusão científica.
 
@@ -292,7 +292,7 @@ Registra a amostra e cria a primeira tarefa do N1, sem misturar o cadastro com a
 
 ### `GET /biological-agents`
 
-- **Schemas — `GET /biological-agents`:** entrada (consulta): [BiologicalAgentQuery](../schemas/sc_biological_agents.py#L199); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [BiologicalAgentResponse](../schemas/sc_biological_agents.py#L123)
+- **Schemas — `GET /biological-agents`:** entrada (consulta): [BiologicalAgentQuery](../facial_recognition/schemas/biological_agents.py#L236); saída: [ListResponse](../facial_recognition/schemas/base_model.py#L91) de [BiologicalAgentResponse](../facial_recognition/schemas/biological_agents.py#L158)
 
 Monta a lista de agentes ativos/inativos que a pessoa pode consultar.
 
@@ -303,18 +303,18 @@ Monta a lista de agentes ativos/inativos que a pessoa pode consultar.
 
 ### `GET /biological-agents/{id}`
 
-- **Schemas — `GET /biological-agents/{id}`:** entrada: Sem corpo JSON; saída: [BiologicalAgentResponse](../schemas/sc_biological_agents.py#L123)
+- **Schemas — `GET /biological-agents/{id}`:** entrada: Sem corpo JSON; saída: [BiologicalAgentResponse](../facial_recognition/schemas/biological_agents.py#L158)
 
 Abre o cadastro de um agente, mantendo separados os cards das validações.
 
 - Quem/credencial: `agents.read`: N1/N2
 - Recebe: ID.
 - Confere e faz: Vínculo autorizado ou N2 do grupo.
-- Responde: 200: cadastro e situação geral; não inclui todas as validações por existir vínculo com uma.
+- Responde: 200: cadastro e situação geral; não inclui todas as validações por existir vínculo com uma. Inclui `can_edit`, calculado para o ator pelo backend: vínculo/papel permitido e nenhuma entrega anterior de qualquer investigação da amostra, independentemente de paginação/filtros ou exclusão lógica de histórico. A UI usa `can_edit === true` para oferecer correção; PATCH deve conferir a regra novamente em transação.
 
 ### `GET /biological-agents/{id}/validations`
 
-- **Schemas — `GET /biological-agents/{id}/validations`:** entrada (consulta): [ValidationQuery](../schemas/sc_validations.py#L227); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [ValidationCardResponse](../schemas/sc_validations.py#L103)
+- **Schemas — `GET /biological-agents/{id}/validations`:** entrada (consulta): [ValidationQuery](../facial_recognition/schemas/validations.py#L237); saída: [ListResponse](../facial_recognition/schemas/base_model.py#L91) de [ValidationCardResponse](../facial_recognition/schemas/validations.py#L113)
 
 Monta os cards da página do agente, incluindo apenas tarefas que o usuário pode ler.
 
@@ -325,7 +325,7 @@ Monta os cards da página do agente, incluindo apenas tarefas que o usuário pod
 
 ### `POST /biological-agents/{id}/validations`
 
-- **Schemas — `POST /biological-agents/{id}/validations`:** entrada (corpo): [ValidationCreate](../schemas/sc_validations.py#L21); saída: [ValidationCreatedResponse](../schemas/sc_validations.py#L240)
+- **Schemas — `POST /biological-agents/{id}/validations`:** entrada (corpo): [ValidationCreate](../facial_recognition/schemas/validations.py#L21); saída: [ValidationCreatedResponse](../facial_recognition/schemas/validations.py#L250)
 
 Permite ao supervisor atribuir outra investigação do mesmo agente quando a anterior terminou.
 
@@ -336,7 +336,7 @@ Permite ao supervisor atribuir outra investigação do mesmo agente quando a ant
 
 ### `GET /validations/{id}`
 
-- **Schemas — `GET /validations/{id}`:** entrada: Sem corpo JSON; saída: [ValidationResponse](../schemas/sc_validations.py#L131)
+- **Schemas — `GET /validations/{id}`:** entrada: Sem corpo JSON; saída: [ValidationResponse](../facial_recognition/schemas/validations.py#L141)
 
 Mostra o formulário científico, equipe e história autorizada de uma tarefa.
 
@@ -347,7 +347,7 @@ Mostra o formulário científico, equipe e história autorizada de uma tarefa.
 
 ### `PATCH /validations/{id}/analysis`
 
-- **Schemas — `PATCH /validations/{id}/analysis`:** entrada (corpo): [ValidationAnalysisUpdate](../schemas/sc_validations.py#L36); saída: [ValidationResponse](../schemas/sc_validations.py#L131)
+- **Schemas — `PATCH /validations/{id}/analysis`:** entrada (corpo): [ValidationAnalysisUpdate](../facial_recognition/schemas/validations.py#L36); saída: [ValidationResponse](../facial_recognition/schemas/validations.py#L141)
 
 Salva o trabalho parcial ou corrigido do único responsável; não envia automaticamente para revisão.
 
@@ -358,7 +358,7 @@ Salva o trabalho parcial ou corrigido do único responsável; não envia automat
 
 ### `POST /validations/{id}/submit`
 
-- **Schemas — `POST /validations/{id}/submit`:** entrada: Sem corpo JSON; saída: [ValidationSubmitResponse](../schemas/sc_validations.py#L171)
+- **Schemas — `POST /validations/{id}/submit`:** entrada: Sem corpo JSON; saída: [ValidationSubmitResponse](../facial_recognition/schemas/validations.py#L181)
 
 Entrega a análise completa ao supervisor e preserva uma cópia com a equipe daquele momento.
 
@@ -369,7 +369,7 @@ Entrega a análise completa ao supervisor e preserva uma cópia com a equipe daq
 
 ### `GET /validations/{id}/participants`
 
-- **Schemas — `GET /validations/{id}/participants`:** entrada: Sem corpo JSON; saída: `list` de [ValidationParticipantResponse](../schemas/sc_validation_participants.py#L24) (catálogo sem paginação).
+- **Schemas — `GET /validations/{id}/participants`:** entrada: Sem corpo JSON; saída: `list` de [ValidationParticipantResponse](../facial_recognition/schemas/validation_participants.py#L24) (catálogo sem paginação).
 
 Mostra quem integra a tarefa atual sem expor o diretório inteiro de usuários.
 
@@ -380,7 +380,7 @@ Mostra quem integra a tarefa atual sem expor o diretório inteiro de usuários.
 
 ### `GET /validations/{id}/participant-candidates`
 
-- **Schemas — `GET /validations/{id}/participant-candidates`:** entrada (consulta): [UserCandidateQuery](../schemas/sc_users.py#L223); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [UserSummary](../schemas/sc_users.py#L31)
+- **Schemas — `GET /validations/{id}/participant-candidates`:** entrada (consulta): [UserCandidateQuery](../facial_recognition/schemas/users.py#L244); saída: [ListResponse](../facial_recognition/schemas/base_model.py#L91) de [UserSummary](../facial_recognition/schemas/users.py#L31)
 
 Fornece os N1 do grupo que podem ser convidados, sem mostrar pessoas de outro grupo.
 
@@ -391,7 +391,7 @@ Fornece os N1 do grupo que podem ser convidados, sem mostrar pessoas de outro gr
 
 ### `POST /validations/{id}/participants`
 
-- **Schemas — `POST /validations/{id}/participants`:** entrada (corpo): [ValidationParticipantAdd](../schemas/sc_validation_participants.py#L10); saída: [ValidationParticipantResponse](../schemas/sc_validation_participants.py#L24)
+- **Schemas — `POST /validations/{id}/participants`:** entrada (corpo): [ValidationParticipantAdd](../facial_recognition/schemas/validation_participants.py#L10); saída: [ValidationParticipantResponse](../facial_recognition/schemas/validation_participants.py#L24)
 
 Compartilha a investigação com um N1 apenas em leitura.
 
@@ -402,7 +402,7 @@ Compartilha a investigação com um N1 apenas em leitura.
 
 ### `POST /validations/{id}/return`
 
-- **Schemas — `POST /validations/{id}/return`:** entrada (corpo): [ValidationReturn](../schemas/sc_validations.py#L77); saída: [ValidationReturnResponse](../schemas/sc_validations.py#L188)
+- **Schemas — `POST /validations/{id}/return`:** entrada (corpo): [ValidationReturn](../facial_recognition/schemas/validations.py#L87); saída: [ValidationReturnResponse](../facial_recognition/schemas/validations.py#L198)
 
 Devolve a entrega ao responsável com o que precisa ser corrigido.
 
@@ -413,7 +413,7 @@ Devolve a entrega ao responsável com o que precisa ser corrigido.
 
 ### `POST /validations/{id}/close`
 
-- **Schemas — `POST /validations/{id}/close`:** entrada (corpo): [ValidationClose](../schemas/sc_validations.py#L90); saída: [ValidationCloseResponse](../schemas/sc_validations.py#L206)
+- **Schemas — `POST /validations/{id}/close`:** entrada (corpo): [ValidationClose](../facial_recognition/schemas/validations.py#L100); saída: [ValidationCloseResponse](../facial_recognition/schemas/validations.py#L216)
 
 Permite ao supervisor encerrar uma entrega durante a revisão, explicando o motivo à equipe.
 
@@ -424,7 +424,7 @@ Permite ao supervisor encerrar uma entrega durante a revisão, explicando o moti
 
 ### `POST /validations/{id}/report/send`
 
-- **Schemas — `POST /validations/{id}/report/send`:** entrada (corpo): [VaultSend](../schemas/sc_vault.py#L19); saída: [VaultSendResponse](../schemas/sc_vault.py#L46)
+- **Schemas — `POST /validations/{id}/report/send`:** entrada (corpo): [VaultSend](../facial_recognition/schemas/vault.py#L19); saída: [VaultSendResponse](../facial_recognition/schemas/vault.py#L46)
 
 Sela a conclusão do supervisor e a ficha pronta para divulgação, entregando-as ao ministro.
 
@@ -435,7 +435,7 @@ Sela a conclusão do supervisor e a ficha pronta para divulgação, entregando-a
 
 ### `GET /reports/sent`
 
-- **Schemas — `GET /reports/sent`:** entrada (consulta): [SentReportQuery](../schemas/sc_vault.py#L212); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [SentReportResponse](../schemas/sc_vault.py#L82)
+- **Schemas — `GET /reports/sent`:** entrada (consulta): [SentReportQuery](../facial_recognition/schemas/vault.py#L212); saída: [ListResponse](../facial_recognition/schemas/base_model.py#L91) de [SentReportResponse](../facial_recognition/schemas/vault.py#L82)
 
 Permite ao supervisor acompanhar o destino do envio e receber pedidos de nova investigação sem ler o cofre.
 
@@ -446,7 +446,7 @@ Permite ao supervisor acompanhar o destino do envio e receber pedidos de nova in
 
 ### `GET /vault/dossiers`
 
-- **Schemas — `GET /vault/dossiers`:** entrada (consulta): [VaultQuery](../schemas/sc_vault.py#L197); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [VaultSummary](../schemas/sc_vault.py#L105)
+- **Schemas — `GET /vault/dossiers`:** entrada (consulta): [VaultQuery](../facial_recognition/schemas/vault.py#L197); saída: [ListResponse](../facial_recognition/schemas/base_model.py#L91) de [VaultSummary](../facial_recognition/schemas/vault.py#L105)
 
 Monta a lista do cofre exclusivo do ministro.
 
@@ -457,7 +457,7 @@ Monta a lista do cofre exclusivo do ministro.
 
 ### `GET /vault/dossiers/{id}`
 
-- **Schemas — `GET /vault/dossiers/{id}`:** entrada: Sem corpo JSON; saída: [VaultResponse](../schemas/sc_vault.py#L127)
+- **Schemas — `GET /vault/dossiers/{id}`:** entrada: Sem corpo JSON; saída: [VaultResponse](../facial_recognition/schemas/vault.py#L127)
 
 Abre o relatório original e a prévia da notícia para decisão do ministro.
 
@@ -468,7 +468,7 @@ Abre o relatório original e a prévia da notícia para decisão do ministro.
 
 ### `POST /vault/dossiers/{id}/publish`
 
-- **Schemas — `POST /vault/dossiers/{id}/publish`:** entrada: Sem corpo JSON; saída: [PublicationPublishResponse](../schemas/sc_publications.py#L71)
+- **Schemas — `POST /vault/dossiers/{id}/publish`:** entrada: Sem corpo JSON; saída: [PublicationPublishResponse](../facial_recognition/schemas/publications.py#L71)
 
 Publica a ficha preparada sem expor o relatório interno e libera outra tarefa.
 
@@ -479,7 +479,7 @@ Publica a ficha preparada sem expor o relatório interno e libera outra tarefa.
 
 ### `POST /vault/dossiers/{id}/keep-restricted`
 
-- **Schemas — `POST /vault/dossiers/{id}/keep-restricted`:** entrada (corpo): [VaultDecisionReason](../schemas/sc_vault.py#L164); saída: [VaultDecisionResponse](../schemas/sc_vault.py#L178)
+- **Schemas — `POST /vault/dossiers/{id}/keep-restricted`:** entrada (corpo): [VaultDecisionReason](../facial_recognition/schemas/vault.py#L164); saída: [VaultDecisionResponse](../facial_recognition/schemas/vault.py#L178)
 
 Registra a decisão de manter o conteúdo interno e encerra a tarefa correspondente.
 
@@ -490,8 +490,8 @@ Registra a decisão de manter o conteúdo interno e encerra a tarefa corresponde
 
 ### `GET /publications` e `GET /publications/{id}`
 
-- **Schemas — `GET /publications`:** entrada (consulta): [PublicationQuery](../schemas/sc_publications.py#L118); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [PublicationResponse](../schemas/sc_publications.py#L36)
-- **Schemas — `GET /publications/{id}`:** entrada: Sem corpo JSON; saída: [PublicationResponse](../schemas/sc_publications.py#L36)
+- **Schemas — `GET /publications`:** entrada (consulta): [PublicationQuery](../facial_recognition/schemas/publications.py#L118); saída: [ListResponse](../facial_recognition/schemas/base_model.py#L91) de [PublicationResponse](../facial_recognition/schemas/publications.py#L36)
+- **Schemas — `GET /publications/{id}`:** entrada: Sem corpo JSON; saída: [PublicationResponse](../facial_recognition/schemas/publications.py#L36)
 
 Permite ao ministro acompanhar notícias e retiradas, sem confundir essa lista com o cofre.
 
@@ -502,7 +502,7 @@ Permite ao ministro acompanhar notícias e retiradas, sem confundir essa lista c
 
 ### `POST /publications/{id}/withdraw`
 
-- **Schemas — `POST /publications/{id}/withdraw`:** entrada (corpo): [PublicationWithdraw](../schemas/sc_publications.py#L58); saída: [PublicationWithdrawResponse](../schemas/sc_publications.py#L88)
+- **Schemas — `POST /publications/{id}/withdraw`:** entrada (corpo): [PublicationWithdraw](../facial_recognition/schemas/publications.py#L58); saída: [PublicationWithdrawResponse](../facial_recognition/schemas/publications.py#L88)
 
 Tira a notícia da consulta pública, preservando conteúdo e motivo reservado no histórico.
 
@@ -513,7 +513,7 @@ Tira a notícia da consulta pública, preservando conteúdo e motivo reservado n
 
 ### `GET /public/publications`
 
-- **Schemas — `GET /public/publications`:** entrada (consulta): [PublicPublicationQuery](../schemas/sc_publications.py#L105); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [PublicPublicationResponse](../schemas/sc_publications.py#L13)
+- **Schemas — `GET /public/publications`:** entrada (consulta): [PublicPublicationQuery](../facial_recognition/schemas/publications.py#L105); saída: [ListResponse](../facial_recognition/schemas/base_model.py#L91) de [PublicPublicationResponse](../facial_recognition/schemas/publications.py#L13)
 
 Fornece a lista de notícias vigentes para quem não está autenticado.
 
@@ -524,7 +524,7 @@ Fornece a lista de notícias vigentes para quem não está autenticado.
 
 ### `GET /public/publications/{id}`
 
-- **Schemas — `GET /public/publications/{id}`:** entrada: Sem corpo JSON; saída: [PublicPublicationResponse](../schemas/sc_publications.py#L13)
+- **Schemas — `GET /public/publications/{id}`:** entrada: Sem corpo JSON; saída: [PublicPublicationResponse](../facial_recognition/schemas/publications.py#L13)
 
 Mostra uma notícia autorizada em layout fixo, sem consulta ao cofre.
 
@@ -535,7 +535,7 @@ Mostra uma notícia autorizada em layout fixo, sem consulta ao cofre.
 
 ### `GET /admin/audit-events`
 
-- **Schemas — `GET /admin/audit-events`:** entrada (consulta): [AuditEventQuery](../schemas/sc_audit_events.py#L37); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [AuditEventResponse](../schemas/sc_audit_events.py#L12)
+- **Schemas — `GET /admin/audit-events`:** entrada (consulta): [AuditEventQuery](../facial_recognition/schemas/audit_events.py#L37); saída: [ListResponse](../facial_recognition/schemas/base_model.py#L91) de [AuditEventResponse](../facial_recognition/schemas/audit_events.py#L12)
 
 Permite revisar eventos administrativos sem revelar conteúdo científico ou motivos exclusivos do ministro.
 
@@ -546,7 +546,7 @@ Permite revisar eventos administrativos sem revelar conteúdo científico ou mot
 
 ### `GET /admin/roles`
 
-- **Schemas — `GET /admin/roles`:** entrada: Sem corpo JSON; saída: `list` de [RoleResponse](../schemas/sc_roles.py#L12) (catálogo sem paginação).
+- **Schemas — `GET /admin/roles`:** entrada: Sem corpo JSON; saída: `list` de [RoleResponse](../facial_recognition/schemas/roles.py#L12) (catálogo sem paginação).
 
 Mostra o catálogo de papéis e suas permissões; não cria um editor de permissões.
 
@@ -557,7 +557,7 @@ Mostra o catálogo de papéis e suas permissões; não cria um editor de permiss
 
 ### `GET /admin/permissions`
 
-- **Schemas — `GET /admin/permissions`:** entrada: Sem corpo JSON; saída: `list` de [PermissionResponse](../schemas/sc_permissions.py#L8) (catálogo sem paginação).
+- **Schemas — `GET /admin/permissions`:** entrada: Sem corpo JSON; saída: `list` de [PermissionResponse](../facial_recognition/schemas/permissions.py#L8) (catálogo sem paginação).
 
 Mostra as ações conhecidas pela autorização central.
 
@@ -579,7 +579,7 @@ Indica que o processo responde, sem revelar banco, segredos ou diagnóstico inte
 
 ### `GET /auth/csrf`
 
-- **Schemas — `GET /auth/csrf`:** entrada: Sem corpo JSON; saída: [CsrfResponse](../schemas/sc_sessions.py#L58)
+- **Schemas — `GET /auth/csrf`:** entrada: Sem corpo JSON; saída: [CsrfResponse](../facial_recognition/schemas/sessions.py#L58)
 
 Prepara a proteção contra chamadas forjadas antes de login ou operações privadas. Rota pública de preparação, sem acesso a dados.
 
@@ -587,14 +587,14 @@ Recebe os cookies atuais. Emite contexto aleatório HttpOnly quando anônimo e d
 
 ### `GET /auth/flow`
 
-- **Schemas — `GET /auth/flow`:** entrada: Sem corpo JSON; saída: [AuthenticationFlowResponse](../schemas/sc_authentication_attempts.py#L29)
+- **Schemas — `GET /auth/flow`:** entrada: Sem corpo JSON; saída: [AuthenticationFlowResponse](../facial_recognition/schemas/authentication_attempts.py#L29)
 
 Ao recarregar a página de face/senha, informa a etapa ainda permitida, sem prolongá-la. Usa cookie restrito, valida a tentativa e retorna `{operation,next_step,expires_in}`; expirado retorna 401.
 
 ### `POST /auth/password-change/start` e `POST /auth/password-change/complete`
 
-- **Schemas — `POST /auth/password-change/start`:** entrada (corpo): [PasswordChangeStartRequest](../schemas/sc_password_hashes.py#L34); saída: [AuthenticationStepResponse](../schemas/sc_authentication_attempts.py#L13)
-- **Schemas — `POST /auth/password-change/complete`:** entrada (corpo): [PasswordCompleteRequest](../schemas/sc_password_hashes.py#L11); saída: [LoginRequiredResponse](../schemas/sc_sessions.py#L45)
+- **Schemas — `POST /auth/password-change/start`:** entrada (corpo): [PasswordChangeStartRequest](../facial_recognition/schemas/password_hashes.py#L44); saída: [AuthenticationStepResponse](../facial_recognition/schemas/authentication_attempts.py#L13)
+- **Schemas — `POST /auth/password-change/complete`:** entrada (corpo): [PasswordCompleteRequest](../facial_recognition/schemas/password_hashes.py#L11); saída: [LoginRequiredResponse](../facial_recognition/schemas/sessions.py#L45)
 
 Start: sessão válida, CSRF e `current_password`. Confere hash e cria tentativa PASSWORD_CHANGE ligada à sessão: VERIFY_FACE para N1/N2/N3; CHANGE_PASSWORD para ADMIN. Retorna 200 e próximo passo em cookie restrito. Não revoga a sessão apenas por iniciar.
 
@@ -602,19 +602,19 @@ Complete: sessão iniciadora ainda válida, cookie CHANGE_PASSWORD da mesma oper
 
 ### `PATCH /biological-agents/{id}`
 
-- **Schemas — `PATCH /biological-agents/{id}`:** entrada (corpo): [BiologicalAgentUpdate](../schemas/sc_biological_agents.py#L49); saída: [BiologicalAgentResponse](../schemas/sc_biological_agents.py#L123)
+- **Schemas — `PATCH /biological-agents/{id}`:** entrada (corpo): [BiologicalAgentUpdate](../facial_recognition/schemas/biological_agents.py#L61); saída: [BiologicalAgentResponse](../facial_recognition/schemas/biological_agents.py#L158)
 
 Permite corrigir cadastro antes do primeiro envio. Criador N1 com vínculo autorizado ou N2 do grupo; Access e CSRF. Recebe qualquer subconjunto dos sete campos cadastrais; campos enviados devem cumprir limites. Confere que não existe entrega anterior do agente e grava alteração/auditoria. Retorna 200 com cadastro; após primeira entrega retorna 409.
 
 ### `PATCH /biological-agents/{id}/status`
 
-- **Schemas — `PATCH /biological-agents/{id}/status`:** entrada (corpo): [BiologicalAgentStatusUpdate](../schemas/sc_biological_agents.py#L93); saída: [BiologicalAgentStatusResponse](../schemas/sc_biological_agents.py#L214)
+- **Schemas — `PATCH /biological-agents/{id}/status`:** entrada (corpo): [BiologicalAgentStatusUpdate](../facial_recognition/schemas/biological_agents.py#L128); saída: [BiologicalAgentStatusResponse](../facial_recognition/schemas/biological_agents.py#L251)
 
 N2 do grupo ativa/inativa o agente. Recebe `{status:"ACTIVE"}` ou `{status:"INACTIVE"}` com Access e CSRF. Desativar confere ausência de tarefa em andamento, em transação. Retorna 200 `{id,status}`; se tarefa aberta, 409. Não modifica publicação/histórico.
 
 ### `GET /biological-agents/{id}/responsible-candidates`
 
-- **Schemas — `GET /biological-agents/{id}/responsible-candidates`:** entrada (consulta): [UserCandidateQuery](../schemas/sc_users.py#L223); saída: [ListResponse](../schemas/sc_base_model.py#L90) de [UserSummary](../schemas/sc_users.py#L31)
+- **Schemas — `GET /biological-agents/{id}/responsible-candidates`:** entrada (consulta): [UserCandidateQuery](../facial_recognition/schemas/users.py#L244); saída: [ListResponse](../facial_recognition/schemas/base_model.py#L91) de [UserSummary](../facial_recognition/schemas/users.py#L31)
 
 N2 precisa escolher responsável para próxima tarefa sem consultar diretório de outro grupo. Access, permissão de criar validação e grupo do agente. Recebe busca/paginação, devolve 200 com N1 ativos do grupo, apenas ID/nome; não exige existir validação nova para consultar candidatos.
 
@@ -626,13 +626,13 @@ N2 do grupo remove um colaborador em OPEN/RETURNED. Access e CSRF, sem corpo. N�
 
 ### `PATCH /validations/{id}/responsible`
 
-- **Schemas — `PATCH /validations/{id}/responsible`:** entrada (corpo): [ValidationResponsibleUpdate](../schemas/sc_validations.py#L64); saída: [ValidationResponsibleResponse](../schemas/sc_validations.py#L255)
+- **Schemas — `PATCH /validations/{id}/responsible`:** entrada (corpo): [ValidationResponsibleUpdate](../facial_recognition/schemas/validations.py#L74); saída: [ValidationResponsibleResponse](../facial_recognition/schemas/validations.py#L265)
 
 N2 do grupo troca responsável em OPEN/RETURNED. Recebe `{responsible_user_id}`. Confere N1 ativo do grupo, mantém anterior como colaborador e torna novo o único editor, sem duplicar vínculos. Retorna 200 com responsável e participantes; entregas antigas não mudam.
 
 ### `POST /vault/dossiers/{id}/request-validation`
 
-- **Schemas — `POST /vault/dossiers/{id}/request-validation`:** entrada (corpo): [VaultDecisionReason](../schemas/sc_vault.py#L164); saída: [VaultDecisionResponse](../schemas/sc_vault.py#L178)
+- **Schemas — `POST /vault/dossiers/{id}/request-validation`:** entrada (corpo): [VaultDecisionReason](../facial_recognition/schemas/vault.py#L164); saída: [VaultDecisionResponse](../facial_recognition/schemas/vault.py#L178)
 
 N3 pede outra investigação, não edição do original. Access, CSRF, `vault.decide` e `{reason}` obrigatório até 1.500. Só dossiê aguardando decisão e validação REPORTED. Registra pedido e fecha a anterior numa transação. Retorna 200 com situação NEW_VALIDATION_REQUESTED e validação CLOSED. N2 do grupo vê motivo no card; outro perfil não ganha o cofre.
 
@@ -658,7 +658,7 @@ JWT HS256, chave aleatória de pelo menos 32 bytes para access, outra para restr
 
 Cookies `lab_access` (Path `/api/v1`), `lab_refresh` (Path `/api/v1/auth`), `lab_stage` (Path `/api/v1/auth`) e `lab_csrf_context` (Path `/api/v1`): HttpOnly, SameSite=Strict, sem Domain. Emissão normal de sessão limpa cookie de etapa. Limpeza usa mesmo nome/Path. Max-Age corresponde ao prazo real restante. Respostas privadas/autenticação: `Cache-Control: no-store`.
 
-Escolha local: servir front e API na MESMA origem HTTPS, com certificado local confiável, e cookies Secure=true. A preparação desse HTTPS ainda será implementada, sem exigir deploy ou Nginx. Para testes isolados HTTP de desenvolvedor, Secure=false só em configuração explícita de desenvolvimento e loopback; esse modo não é o padrão nem funciona como configuração para rede. HTTPS também permite a câmera com navegador; autorização de câmera continua necessária.
+Escolha local: servir front e API na MESMA origem HTTPS, com certificado local confiável, e cookies Secure=true. A preparação desse HTTPS ainda será implementada, sem exigir deploy ou Nginx. Para testes isolados HTTP de desenvolvedor, Secure=false só em ENVIRONMENT=development/test e loopback; esse modo não é o padrão nem funciona como configuração para rede. HTTPS também permite a câmera com navegador; autorização de câmera continua necessária.
 
 CSRF: token aleatório com assinatura HMAC ligada ao contexto, nunca double-submit sem assinatura. GET de preparação devolve token, e cada POST/PATCH/DELETE verifica header, assinatura e contexto. Confirmar Origin exata; quando Origin ausente, conferir origem do Referer; ausência de ambos em mutação browser é negada. Bloquear `Sec-Fetch-Site: cross-site`; não habilitar CORS para terceiros. Rotacionar contexto após login, mudança de etapa, renovação ou logout; frontend busca novo CSRF. Token CSRF pode ser lido pelo JavaScript; tokens de autenticação não.
 
@@ -682,7 +682,7 @@ Todas as 18 tabelas da aplicação usam soft_delete, sem DELETE físico ou expur
 
 Páginas públicas: Login e Notícias/lista/detalhe. Etapas: Cadastro facial, Reconhecimento facial e Definir senha. Todos têm menu Alterar senha e Sair. N1: Agentes, cadastro, detalhe com cards e validação editável/leitura. N2: Agentes, Revisões, Enviadas ao N3 e Solicitações. N3: Cofre/dossiê, Publicações e Solicitações. ADMIN: Solicitações, Contas e Auditoria administrativa. Não criar perfil nem página para cada transição.
 
-Pastas alvo: `backend/app/{core,security,routers,schemas,services,repositories,biometrics}`, `backend/seed/admin.py`, `backend/migrations`, `frontend/{pages,js,css,assets}`, `docs`. Core gerencia config/pool/lifespan; security concentra tokens, dependências/CSRF/autorização; router traduz HTTP; service muda estados; repository SQL. Biometrics tem simulador e adaptação real. Sem ORM, microserviços ou framework frontend novo. Reorganização das pastas será uma etapa explícita na implementação; nenhum arquivo de execução foi movido.
+Estrutura atual: `facial_recognition/{core,routers,schemas,seed,migrations,utils,frontend}`, além de `docs` e `tests`. Configuração, conexão, autenticação, autorização e modelos ficam em core; routers traduzem HTTP; schemas definem contratos; seed prepara catálogos e ADMIN. Frontend usa HTML/CSS/JavaScript sem build. O desenho anterior com services/repositories separados não foi adotado neste recorte; as operações científicas ainda serão implementadas. Não criar camadas ou reorganizar novamente sem necessidade concreta.
 
 Ordem: base/config/migrations → contas/permissões → login/simulador → agentes/validações → revisão/cofre/publicação → páginas → integração real e testes do conjunto. Testes precisam cobrir acessos negativos e concorrência em PostgreSQL real; mocks não comprovam constraints. Testar cookies/CSRF/câmera também no navegador. O `main.py` aplica migrations pendentes e preserva dados; não inicia a API e não executa reset automático.
 
@@ -759,7 +759,7 @@ O sistema permite uma conta por vez no mesmo perfil do navegador. Se Ana estiver
 
 Até três reprovações biométricas por tentativa; também três reprovações reais por usuário numa janela de 15 minutos causam bloqueio de cinco minutos. Novo login não zera contador. Falha de processamento e captura ruim não contam como fraude; PAD reprovado ou rosto válido que não contam. Sucesso completo limpa os controles; ao terminar o bloqueio inicia outro ciclo de contagem sem restaurar tokens. Bloqueio encerrado não restaura tokens expirados.
 
-Senhas temporárias e definitivas: 8 a 30 caracteres e consulta a TXT local de senhas previsíveis. Não obrigar combinações arbitrárias de maiúscula/símbolo. Comparação escolhida para revisão: senha inteira, com distinção de maiúsculas, sem remover espaços da senha; nunca consultar senha pela rede. Arquivo carregado uma vez no servidor; ausência da lista impede criar novas senhas, mas não impede verificar login existente. Referência: [SecLists — 10k-most-common.txt](https://github.com/danielmiessler/SecLists/blob/master/Passwords/Common-Credentials/10k-most-common.txt). Fixar revisão e checksum na implementação. A mensagem é “A senha é muito fraca. Escolha outra senha.”
+Senhas temporárias e definitivas: 8 a 128 caracteres e consulta a TXT local de senhas previsíveis. Não obrigar combinações arbitrárias de maiúscula/símbolo. Comparação escolhida para revisão: senha inteira, com distinção de maiúsculas, sem remover espaços da senha; nunca consultar senha pela rede. Arquivo carregado uma vez no servidor; ausência da lista impede criar novas senhas, mas não impede verificar login existente. Referência: [SecLists — 10k-most-common.txt](https://github.com/danielmiessler/SecLists/blob/master/Passwords/Common-Credentials/10k-most-common.txt). Fixar revisão e checksum na implementação. A mensagem é “A senha é muito fraca. Escolha outra senha.”
 
 ### Recuperação e alteração de contas
 
@@ -769,3 +769,8 @@ Somente ADMIN recupera senha esquecida (nova temporária, face mantida), biometr
 
 Desativar conta revoga sessões/tentativas e libera posição, preservando email e história. Reativar limpa soft_delete, volta a PENDING_ACTIVATION e sempre exige nova temporária e novo cadastro facial, com troca de senha; activated_at mantém a data da primeira ativação. ADMIN também corrige nome/email/papel/grupo; mudança de email ou permissões revoga sessão. Não altera dados históricos. Mudança de grupo/papel de responsável em tarefa ainda em preparação exige substituição pelo N2 antes, para não deixar editor fora do grupo. Desativação da conta nunca é impedida por esse motivo: bloqueia acesso imediatamente, mantém tarefa/história e N2 deve atribuir outro responsável antes de continuar. Se a tarefa está em revisão, N2 pode concluir a revisão ou devolver antes de trocar. Essas são escolhas desta consolidação para revisão.
 
+
+
+## Simulação local de biometria
+
+`BIOMETRICS_MODE` é obrigatório (`real`/`simulated`). A simulação só é permitida em `development`/`test`. `GET /auth/flow` acrescenta `biometrics_mode` para a interface escolher a etapa sem câmera. `POST /auth/biometric/simulate` não recebe corpo; exige CSRF, cookie restrito vigente e etapa ENROLL_FACE/VERIFY_FACE de ACTIVATION/LOGIN/RECOVERY. Revalida conta/credencial/tentativa em transação, confere validade da temporária e autorização de cadastro, registra BIOMETRIC_SIMULATED e retorna a próxima etapa ou sessão. Não grava vetores. Fora do modo permitido retorna 403. Os endpoints reais de biometria recusam execução no modo simulado. Permissões e demais regras de autenticação permanecem vigentes. Limites e cuidados estão em AUTH_LAB.md.

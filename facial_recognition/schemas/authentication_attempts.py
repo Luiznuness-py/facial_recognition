@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import Field
 
-from schemas.sc_base_model import BaseSchema
+from facial_recognition.schemas.base_model import BaseSchema
 
 AuthStage = Literal["ENROLL_FACE", "VERIFY_FACE", "CHANGE_PASSWORD"]
 AuthOperation = Literal["LOGIN", "ACTIVATION", "RECOVERY", "PASSWORD_CHANGE"]
@@ -34,6 +34,8 @@ class AuthenticationFlowResponse(AuthenticationStepResponse):
 
     Attributes:
         operation: Fluxo de entrada, ativação, recuperação ou troca de senha.
+        biometrics_mode: Modo informado pelo servidor para escolher a tela facial.
     """
 
     operation: AuthOperation
+    biometrics_mode: Literal["real", "simulated"]

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#145c4a">
+  <meta name="description" content="Laboratório fictício de biossegurança ambiental. Projeto acadêmico de investigação e divulgação responsável.">
+  <title>Laboratório de Biossegurança Ambiental</title>
+  <link rel="icon" type="image/png" href="/static/assets/logo-simbolo.png">
+  <link rel="preload" href="/static/assets/fonts/manrope.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="stylesheet" href="/static/lab.css">
+  <script type="module" src="/static/lab.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#content">Ir para o conteúdo</a>
+  <header class="site-header">
+    <a href="#/noticias" class="brand" aria-label="Laboratório de Biossegurança Ambiental — início">
+      <img src="/static/assets/logo-com-texto.png" width="754" height="279" alt="Laboratório de Biossegurança Ambiental">
+    </a>
+    <nav id="top-nav" aria-label="Navegação principal"></nav>
+  </header>
+  <div id="layout">
+    <aside id="sidebar" hidden aria-label="Área institucional"></aside>
+    <main id="content" tabindex="-1">
+      <div id="notice" role="status" aria-live="polite" hidden></div>
+      <div id="view" aria-busy="true"><p>Preparando o laboratório…</p></div>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <div><strong>Laboratório de Biossegurança Ambiental</strong><p>Projeto acadêmico · Laboratório fictício</p></div>
+    <div><strong>Referências institucionais</strong><p><a href="https://www.gov.br/icmbio/pt-br">ICMBio</a> · <a href="https://www.gov.br/mma/pt-br">Ministério do Meio Ambiente e Mudança do Clima</a></p><small>Sem vínculo institucional, patrocínio ou chancela desses órgãos.</small></div>
+    <div class="image-credit"><strong>Fotografia ilustrativa</strong><p><a href="https://commons.wikimedia.org/wiki/File:Toco_toucan_(Ramphastos_toco)_close-up.jpg">Tucano-toco · AntanO</a></p><small><a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a> · Wikimedia Commons<br>Enquadramento adaptado à interface.</small></div>
+  </footer>
+  <dialog id="action-dialog" aria-labelledby="dialog-title"><div id="dialog-body"></div></dialog>
+  <noscript><p class="noscript">Ative o JavaScript para consultar notícias e utilizar o laboratório. O acesso institucional depende de autenticação no servidor.</p></noscript>
+</body>
+</html>

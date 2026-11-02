@@ -1,14 +1,23 @@
+"""Configuração de logging para a execução manual da aplicação."""
 import logging
 import sys
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
 
 def configure_logging(log_file: Path | None = None) -> None:
-    """
-    Inicializa a configuração de log.
+    """Configura o logger raiz para saída no terminal e, opcionalmente, em arquivo.
+
+    Usa DEBUG e arquivos de até 2 MB, mantendo cinco backups. Se já houver handlers, retorna
+    sem criar outros; não grava mensagens de domínio por conta própria.
 
     Args:
-        log_file (Path, None): Nome base para o arquivo de log. Padrão None.
+        log_file: Caminho opcional do arquivo rotativo; None usa somente o terminal.
+
+    Returns:
+        None: Ajusta o nível do logger e instala handlers se ainda não existirem.
+
+    Raises:
+        OSError: Quando o arquivo de log não pode ser aberto.
     """
 
     root_logger = logging.getLogger()

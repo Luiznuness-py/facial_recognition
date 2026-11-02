@@ -53,7 +53,16 @@ class AuditEventQuery(PaginationParams):
 
     @model_validator(mode="after")
     def validate_period(self) -> Self:
-        """Exige fuso nos instantes enviados e início não posterior ao fim."""
+        """Exige fuso nos instantes enviados e início não posterior ao fim.
+
+        Datas omitidas não restringem esse limite da consulta.
+
+        Returns:
+            Self: Retorna o próprio filtro com o período conferido.
+
+        Raises:
+            ValueError: Se alguma data não tem fuso ou o início é posterior ao fim.
+        """
         for instant in (self.date_from, self.date_to):
             if instant is not None and instant.utcoffset() is None:
                 raise ValueError("Informe o fuso horário nas datas do período.")

@@ -44,4 +44,11 @@ uvicorn==0.53.0 ; python_version >= "3.13"
 uvloop==0.22.1 ; sys_platform != "win32" and sys_platform != "cygwin" and platform_python_implementation != "PyPy" and python_version >= "3.13"
 watchfiles==1.2.0 ; python_version >= "3.13"
 websockets==17.1 ; python_version >= "3.13"
-opencv-python>=4.10,<5
+opencv-python>=5,<6
+
+# Autenticação e inferência da bancada (CPU recomendado; veja docs/AUTH_LAB.md)
+PyJWT>=2.15.1,<3
+argon2-cffi>=23.1
+cryptography>=44
+Pillow>=11
+torch>=2.6

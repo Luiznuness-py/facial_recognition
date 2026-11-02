@@ -4,9 +4,9 @@ Projeto acadêmico local de autenticação facial e controle de acesso para um l
 
 ## Estado do projeto
 
-Regras e contratos estão em planejamento. A base existente contém configuração/conexão PostgreSQL e migrations; a documentação não significa que a API, páginas ou integração biométrica já funcionam. A migration inicial e os testes SQL acompanham os contratos documentados; as rotas ainda serão implementadas.
+O frontend institucional está em `/lab`, com notícias públicas, login e telas por papel. Autenticação, equipes, listagem de contas e cadastro direto pelo ADMIN têm chamadas para as rotas existentes. As telas científicas e os demais fluxos administrativos estão preparados conforme os contratos e informam quando dependem de backend ainda não implementado. Veja [telas, integração e roteiro manual](docs/FRONTEND.md) e [preparação da autenticação, testes e limites](docs/AUTH_LAB.md).
 
-`main.py` aplica as migrations pendentes e encerra a conexão, preservando as tabelas e os dados. Ele ainda não inicia a API; sua entrada normal será definida na implementação.
+`main.py` aplica as migrations pendentes e encerra a conexão, preservando as tabelas e os dados. Para iniciar a API e a interface, use o comando Uvicorn abaixo.
 
 ## Documentação para revisar
 
@@ -44,54 +44,140 @@ Papéis/permissões no banco, autorização central por ação e recurso. Creden
 
 Frontend HTML/CSS/JavaScript; FastAPI; PostgreSQL, SQL parametrizado e asyncpg. PostgreSQL pode executar em container local. Pipeline inicial YuNet/SFace e MiniFASNet/Silent-Face, com parâmetros a avaliar. Dupla do sistema usa simulador de desenvolvimento enquanto dupla dos modelos testa; simulador não comprova eficácia biométrica.
 
-## Configuração local
+## Preparar o ambiente local
 
-Copie o arquivo de exemplo antes de iniciar o projeto:
+Execute os comandos na raiz deste repositório. Requisitos: **Python 3.13**, módulo venv/pip e, se usar o banco em container, **Docker Engine ou Docker Desktop com Docker Compose v2**. Confira `python3.13 --version` e `docker compose version`. Use Python 3.13 também se tiver outras versões instaladas; em distribuições Debian/Ubuntu pode ser necessário instalar o pacote venv correspondente. Não é necessário Node, npm ou build do frontend. Se a criação da venv falhar com ausência de `ensurepip`/pip no Ubuntu com Python 3.13 já instalado, instale o suporte da mesma versão antes de tentar novamente:
+
+```bash
+sudo apt install python3.13-venv
+```
+
+Esse comando depende de a distribuição/repositório fornecer Python 3.13; não substitua por Python 3.12 para este projeto.
+
+### 1. Configurar o .env
+
+Se ainda não tiver um `.env`, crie a cópia (não sobrescreva sua configuração existente):
 
 ```bash
 cp .env.example .env
 ```
 
-O arquivo `.env` contém dados locais de conexão e segredos de desenvolvimento.
-Ele é ignorado pelo Git e nunca deve ser versionado. Versione apenas o
-`.env.example`, com valores de exemplo sem segredos reais.
+Edite os valores antes de subir o banco:
 
-## Executar o PostgreSQL com Docker
-
-O Docker é necessário apenas quando o PostgreSQL local for executado pelo
-projeto. Se já houver um PostgreSQL acessível, preencha o `.env` com seus
-dados de conexão e pule esta etapa.
+| Campo | Como preencher |
+|---|---|
+| `ENVIRONMENT` | `development` para trabalhar preservando dados; `test` apaga o schema test no encerramento normal da API; `production` exige biometria real e HTTPS para emitir cookies. |
+| `BIOMETRICS_MODE` | Obrigatório: `simulated` para colegas sem webcam ou `real` para modelos reais. Simulação só é aceita em development/test. |
+| `DB_HOST` | `127.0.0.1` para a API no computador acessando o Compose. |
+| `DB_PORT` | Porta publicada no computador; padrão do exemplo: `5432`. |
+| `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Nome do banco, usuário e senha; o Compose usa esses mesmos valores para inicializar um volume novo. |
+| `ADMIN_EMAIL` | Email usado para criar o primeiro administrador. |
+| `ADMIN_SECRET` | Senha temporária inicial: 8–128 caracteres, fora da lista de senhas comuns; não é a chave dos tokens. |
+| `SECRET_KEY` | Raiz secreta com pelo menos 32 bytes aleatórios. Gere com o comando abaixo. |
 
 ```bash
-docker compose up -d postgres
-docker compose ps
+python3.13 -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
-O PostgreSQL ficará disponível no host, porta e banco definidos em `.env`.
-Para encerrar o container sem apagar os dados persistidos:
+Copie a saída somente para `SECRET_KEY` no `.env`. Preserve essa chave enquanto precisar dos templates faciais criptografados: trocá-la impede a leitura dos vetores anteriores. `.env` é ignorado pelo Git; não compartilhe credenciais reais. Os valores `troque_...` do exemplo devem ser substituídos.
+
+### 2. Iniciar o PostgreSQL com Docker Compose
+
+Se já tiver PostgreSQL acessível, use seus dados no `.env` e pule a criação do container. Caso contrário:
+
+```bash
+docker compose up -d --wait postgres
+docker compose ps postgres
+docker compose exec postgres sh -c 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+```
+
+O serviço usa PostgreSQL 16, publica `DB_PORT` e mantém os dados no volume `pgdata`. Aguarde o health check ficar saudável antes de iniciar a API. `DB_HOST` configura a conexão da API, não o endereço de publicação do Docker. O Compose atual publica a porta do banco nas interfaces do computador; não a exponha à internet.
+
+Para investigar uma falha de inicialização:
+
+```bash
+docker compose logs --tail=100 postgres
+```
+
+Se a porta já estiver ocupada, escolha outra em `DB_PORT`. Se o Docker reportar permissão negada, confira o acesso do seu usuário ao daemon conforme a instalação da sua máquina; não mude permissões do socket para acesso público.
+
+Em um volume existente, mudar `DB_USER`, `DB_PASSWORD` ou `DB_NAME` no `.env` não recria o banco nem altera suas credenciais. Preserve a configuração original ou faça uma migração administrativa planejada. **Não use `docker compose down -v` para resolver conexão: isso remove o volume e apaga seus dados.**
+
+Para parar preservando o volume:
 
 ```bash
 docker compose down
 ```
 
-## Executar com Poetry
+### 3. Instalar e executar com venv
 
 ```bash
-poetry install
-poetry run python main.py
-```
-
-## Executar com venv
-
-```bash
-python3 -m venv .venv
+python3.13 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-python main.py
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m uvicorn facial_recognition.app:app --reload --host 127.0.0.1
 ```
 
-> Nesta fase inicial, os ajustes de estrutura ficam na migration 001. Um banco
-> que já registrou essa versão não é atualizado ao editar o arquivo. Nenhum reset
-> é executado automaticamente; recriar o banco local exige uma decisão explícita.
+Os comandos de ativação acima são para Bash/Linux. No PowerShell/Windows, ative com `.venv\Scripts\Activate.ps1` e use o Python 3.13 instalado (`py -3.13 -m venv .venv`). Os demais comandos com `python -m ...` são os mesmos.
+
+O PyTorch faz parte das dependências mesmo em modo simulado. Para evitar pacotes CUDA desnecessários no Linux/Windows, é possível instalar a versão CPU **antes** do requirements:
+
+```bash
+python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+python -m pip install -r requirements.txt
+```
+
+Abra **http://127.0.0.1:8000/lab**. O portal público e a tela de login estão disponíveis; endpoints ainda não implementados mostram pendência. A API aplica migrations e seeds automaticamente. Entre com `ADMIN_EMAIL`/`ADMIN_SECRET` e defina uma senha definitiva. O bootstrap não redefine contas existentes; alterar ADMIN_SECRET depois não troca a senha cadastrada.
+
+Interrompa o Uvicorn com Ctrl+C. Ao voltar em outro terminal:
+
+```bash
+source .venv/bin/activate
+python -m uvicorn facial_recognition.app:app --reload --host 127.0.0.1
+```
+
+Use `deactivate` para sair da venv. Não é necessário rodar `main.py` antes da API: esse comando aplica apenas migrations, sem servidor ou seeds, e preserva dados.
+
+### Alternativa: Poetry
+
+Escolha venv ou Poetry, sem instalar em dois ambientes por engano:
+
+```bash
+poetry env use python3.13
+poetry install
+poetry run uvicorn facial_recognition.app:app --reload --host 127.0.0.1
+```
+
+Para instalar também os testes: `poetry install --extras test`. O Poetry usa o índice CPU para torch.
+
+## Ambientes, biometria e dados
+
+- `development`: usa o schema `public`, preservando dados ao encerrar.
+- `test`: usa o mesmo `DB_NAME`, mas no schema `test`; o lifespan remove e recria esse schema ao encerrar normalmente, antes de fechar o pool. Não use esse ambiente para dados que deseja preservar. Reinício automático por `--reload` também encerra o lifespan e executa o reset.
+- `production`: usa `public`; simulação não é permitida e HTTP não emite cookies, mesmo em loopback.
+
+`BIOMETRICS_MODE=simulated` permite avançar a etapa facial sem webcam, mantendo senha, CSRF, permissões e sessões. Não cria vetores falsos. Credenciais de simulação não valem no modo real. Contas ativadas sem face precisam de recadastro/recuperação facial para uso real; o fluxo administrativo correspondente continua pendente. Confira [autenticação e modos](docs/AUTH_LAB.md#modo-obrigatório-de-biometria).
+
+Em `real`, o lifespan carrega YuNet, SFace e os dois MiniFASNet locais. Os quatro pesos acompanham o repositório em `models/`; não há download na inicialização. Arquivos ausentes/incompatíveis impedem iniciar em modo real. Consulte [origem, hashes e licenças](models/README.md). Em `simulated`, esses pesos não são carregados.
+
+HTTP sem cookie Secure é permitido somente em loopback e development/test. Celular pelo IP de rede precisa de HTTPS confiável para autenticação e câmera. Túnel/HTTPS remoto será configurado depois; não basta trocar o host para `0.0.0.0`.
+
+A migration 001 define o schema para bancos novos. Editá-la não atualiza bancos que já a registraram; uma evolução de banco existente exige migration adicional ou decisão explícita de recriação. O reset de test no encerramento é separado desse mecanismo.
+
+## Testes
+
+Com a venv ativa e PostgreSQL acessível:
+
+```bash
+python -m pip install 'pytest>=8' 'httpx>=0.28'
+python -m pytest -q tests
+```
+
+O pytest força `ENVIRONMENT=test` e `BIOMETRICS_MODE=real`; os testes de fluxo substituem a inferência, e os testes do simulador configuram o modo explicitamente. Testes com banco usam transação e rollback sobre o schema test; não execute em paralelo nem junto da API test. Não use seu banco com dados importantes para validações. Os smokes com modelos reais podem ser ignorados se não houver dataset local; isso não comprova eficácia biométrica. Veja [isolamento e limites](docs/AUTH_LAB.md#testes-reproduzíveis).
 
 Os contratos em [ENDPOINTS.md](docs/ENDPOINTS.md) incluem links para os schemas de entrada e saída de cada rota. As distribuições em [AMANDA.md](docs/AMANDA.md), [JOAO.md](docs/JOAO.md) e [LUIZ.md](docs/LUIZ.md) repetem esses atalhos para facilitar a implementação.
+
+## Bancada biométrica
+
+O guia de execução e a explicação da implementação estão em [AUTH_LAB.md](docs/AUTH_LAB.md). Nenhum banco existente é apagado na inicialização.

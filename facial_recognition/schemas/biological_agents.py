@@ -40,7 +40,19 @@ class BiologicalAgentCreate(BaseSchema):
     @field_validator("collected_on")
     @classmethod
     def validate_collection_date(cls, value: date) -> date:
-        """Rejeita coleta posterior à data atual do servidor."""
+        """Confere a data de coleta com a data local atual do servidor.
+
+        Não altera a data recebida nem consulta o banco.
+
+        Args:
+            value: Data recebida para collected_on.
+
+        Returns:
+            date: Valor original quando não é uma data futura.
+
+        Raises:
+            ValueError: Quando a data de coleta está no futuro.
+        """
         if value > date.today():
             raise ValueError("A data da coleta não pode estar no futuro.")
         return value
@@ -74,14 +86,37 @@ class BiologicalAgentUpdate(BaseSchema):
     @field_validator("collected_on")
     @classmethod
     def validate_collection_date(cls, value: date | None) -> date | None:
-        """Rejeita data futura; null explícito é tratado na validação do PATCH."""
+        """Confere a data de coleta com a data local atual do servidor.
+
+        No PATCH, a recusa de null explícito é responsabilidade de validate_patch.
+
+        Args:
+            value: Data recebida para collected_on ou None no schema de alteração.
+
+        Returns:
+            date | None: Valor original quando não é uma data futura.
+
+        Raises:
+            ValueError: Quando a data de coleta está no futuro.
+        """
         if value is not None and value > date.today():
             raise ValueError("A data da coleta não pode estar no futuro.")
         return value
 
     @model_validator(mode="after")
     def validate_patch(self) -> Self:
-        """Exige alteração e permite limpar apenas a informação complementar."""
+        """Exige alteração e permite limpar apenas a informação complementar.
+
+        Omitir um campo preserva o valor atual; known_information é o único campo que este
+        validador permite limpar explicitamente.
+
+        Returns:
+            Self: Retorna a própria alteração com os campos informados preservados.
+
+        Raises:
+            ValueError: Se nenhum campo foi enviado ou um campo diferente de
+                known_information recebeu null.
+        """
         if not self.model_fields_set:
             raise ValueError("Informe ao menos um campo para alterar.")
         for field in self.model_fields_set - {"known_information"}:
@@ -132,6 +167,7 @@ class BiologicalAgentResponse(AuditSchema):
         initial_observations, investigation_reason, known_information: Cadastro.
         team_id: Equipe à qual a amostra pertence.
         status: Situação científica ACTIVE ou INACTIVE.
+        can_edit: Permissão calculada para o ator considerando todas as entregas da amostra.
     """
 
     id: UUID
@@ -145,6 +181,7 @@ class BiologicalAgentResponse(AuditSchema):
     known_information: str | None = None
     team_id: UUID
     status: AgentStatus
+    can_edit: bool
 
 
 class CreatedAgentResponse(BiologicalAgentSummary):

@@ -25,3 +25,6 @@ dataset/
 .codex/
 .vscode/
 poetry.lock
+
+# Artefatos locais de revisão visual
+/work/

@@ -1,5 +1,7 @@
 
-# Casos de Uso - Sistema de Biossegurança Ambiental
+# Casos de uso históricos - Sistema de Biossegurança Ambiental
+
+> Documento histórico, superado por [BUSINESS_RULES.md](BUSINESS_RULES.md), [USE_CASES.md](USE_CASES.md) e [ENDPOINTS.md](ENDPOINTS.md). Os atores e fluxos abaixo não devem orientar implementação: no contrato atual N1 prepara a análise e N2 revisa e envia ao N3. Preservado como registro da proposta anterior.
 
 ## 1. Atores do Sistema
 
