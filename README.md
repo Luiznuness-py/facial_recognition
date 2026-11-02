@@ -46,20 +46,52 @@ Frontend HTML/CSS/JavaScript; FastAPI; PostgreSQL, SQL parametrizado e asyncpg. 
 
 ## Preparar o ambiente local
 
-Execute os comandos na raiz deste repositório. Requisitos: **Python 3.13**, módulo venv/pip e, se usar o banco em container, **Docker Engine ou Docker Desktop com Docker Compose v2**. Confira `python3.13 --version` e `docker compose version`. Use Python 3.13 também se tiver outras versões instaladas; em distribuições Debian/Ubuntu pode ser necessário instalar o pacote venv correspondente. Não é necessário Node, npm ou build do frontend. Se a criação da venv falhar com ausência de `ensurepip`/pip no Ubuntu com Python 3.13 já instalado, instale o suporte da mesma versão antes de tentar novamente:
+Execute os comandos na raiz deste repositório. Use **Python 3.13** e Docker Compose v2 se o PostgreSQL for executado em container. Não é necessário Node, npm ou build do frontend.
+
+#### Linux — Bash
+
+Instale Python 3.13 com suporte a venv/pip e Docker Engine com o plugin Compose (ou Docker Desktop para Linux). Confira:
+
+```bash
+python3.13 --version
+docker compose version
+docker info
+```
+
+No Ubuntu com Python 3.13 já instalado, se criar a venv falhar por ausência de `ensurepip`/pip:
 
 ```bash
 sudo apt install python3.13-venv
 ```
 
-Esse comando depende de a distribuição/repositório fornecer Python 3.13; não substitua por Python 3.12 para este projeto.
+Esse pacote depende de a distribuição/repositório fornecer Python 3.13. Não substitua por Python 3.12 para este projeto.
+
+#### Windows — PowerShell
+
+Instale Python 3.13 com pip e o launcher `py`. Instale e abra o Docker Desktop, usando o backend WSL 2 e containers Linux; conclua os requisitos de virtualização/WSL solicitados pelo instalador. O projeto pode ser executado pelo PowerShell, sem instalar Python dentro do WSL. Confira:
+
+```powershell
+py -3.13 --version
+docker compose version
+docker info
+```
+
+Referências de instalação: [venv do Python](https://docs.python.org/3.13/library/venv.html) e [Docker Desktop no Windows](https://docs.docker.com/desktop/setup/install/windows-install/). Os comandos Windows abaixo são para PowerShell, não para o Prompt de Comando (cmd).
 
 ### 1. Configurar o .env
 
-Se ainda não tiver um `.env`, crie a cópia (não sobrescreva sua configuração existente):
+Crie a cópia somente se ainda não houver `.env`; os comandos preservam uma configuração existente.
+
+**Linux — Bash:**
 
 ```bash
-cp .env.example .env
+if [ ! -f .env ]; then cp .env.example .env; fi
+```
+
+**Windows — PowerShell:**
+
+```powershell
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
 Edite os valores antes de subir o banco:
@@ -75,25 +107,32 @@ Edite os valores antes de subir o banco:
 | `ADMIN_SECRET` | Senha temporária inicial: 8–128 caracteres, fora da lista de senhas comuns; não é a chave dos tokens. |
 | `SECRET_KEY` | Raiz secreta com pelo menos 32 bytes aleatórios. Gere com o comando abaixo. |
 
+**Linux — Bash:**
+
 ```bash
 python3.13 -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+**Windows — PowerShell:**
+
+```powershell
+py -3.13 -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
 Copie a saída somente para `SECRET_KEY` no `.env`. Preserve essa chave enquanto precisar dos templates faciais criptografados: trocá-la impede a leitura dos vetores anteriores. `.env` é ignorado pelo Git; não compartilhe credenciais reais. Os valores `troque_...` do exemplo devem ser substituídos.
 
 ### 2. Iniciar o PostgreSQL com Docker Compose
 
-Se já tiver PostgreSQL acessível, use seus dados no `.env` e pule a criação do container. Caso contrário:
+Se já tiver PostgreSQL acessível, use seus dados no `.env` e pule a criação do container. Caso contrário, execute os mesmos comandos no **Bash/Linux ou PowerShell/Windows**, com o Docker em execução:
 
 ```bash
 docker compose up -d --wait postgres
 docker compose ps postgres
-docker compose exec postgres sh -c 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 ```
 
 O serviço usa PostgreSQL 16, publica `DB_PORT` e mantém os dados no volume `pgdata`. Aguarde o health check ficar saudável antes de iniciar a API. `DB_HOST` configura a conexão da API, não o endereço de publicação do Docker. O Compose atual publica a porta do banco nas interfaces do computador; não a exponha à internet.
 
-Para investigar uma falha de inicialização:
+Para investigar uma falha de inicialização, em ambos os sistemas:
 
 ```bash
 docker compose logs --tail=100 postgres
@@ -103,13 +142,15 @@ Se a porta já estiver ocupada, escolha outra em `DB_PORT`. Se o Docker reportar
 
 Em um volume existente, mudar `DB_USER`, `DB_PASSWORD` ou `DB_NAME` no `.env` não recria o banco nem altera suas credenciais. Preserve a configuração original ou faça uma migração administrativa planejada. **Não use `docker compose down -v` para resolver conexão: isso remove o volume e apaga seus dados.**
 
-Para parar preservando o volume:
+Para parar preservando o volume, em ambos os sistemas:
 
 ```bash
 docker compose down
 ```
 
 ### 3. Instalar e executar com venv
+
+**Linux — Bash:**
 
 ```bash
 python3.13 -m venv .venv
@@ -119,9 +160,25 @@ python -m pip install -r requirements.txt
 python -m uvicorn facial_recognition.app:app --reload --host 127.0.0.1
 ```
 
-Os comandos de ativação acima são para Bash/Linux. No PowerShell/Windows, ative com `.venv\Scripts\Activate.ps1` e use o Python 3.13 instalado (`py -3.13 -m venv .venv`). Os demais comandos com `python -m ...` são os mesmos.
+**Windows — PowerShell:**
 
-O PyTorch faz parte das dependências mesmo em modo simulado. Para evitar pacotes CUDA desnecessários no Linux/Windows, é possível instalar a versão CPU **antes** do requirements:
+```powershell
+py -3.13 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m uvicorn facial_recognition.app:app --reload --host 127.0.0.1
+```
+
+Se o PowerShell bloquear `Activate.ps1`, não é necessário alterar a política de execução: use diretamente o Python da venv, sem ativá-la:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m uvicorn facial_recognition.app:app --reload --host 127.0.0.1
+```
+
+O PyTorch faz parte das dependências mesmo em modo simulado. Para evitar pacotes CUDA desnecessários no Linux/Windows, é possível instalar a versão CPU **antes** do requirements. Com a venv ativa, os comandos são iguais em Bash e PowerShell (sem ativação no Windows, substitua `python` por `.\.venv\Scripts\python.exe`):
 
 ```bash
 python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
@@ -130,21 +187,43 @@ python -m pip install -r requirements.txt
 
 Abra **http://127.0.0.1:8000/lab**. O portal público e a tela de login estão disponíveis; endpoints ainda não implementados mostram pendência. A API aplica migrations e seeds automaticamente. Entre com `ADMIN_EMAIL`/`ADMIN_SECRET` e defina uma senha definitiva. O bootstrap não redefine contas existentes; alterar ADMIN_SECRET depois não troca a senha cadastrada.
 
-Interrompa o Uvicorn com Ctrl+C. Ao voltar em outro terminal:
+Interrompa o Uvicorn com Ctrl+C. Ao voltar em outro terminal, na raiz do projeto:
+
+**Linux — Bash:**
 
 ```bash
 source .venv/bin/activate
 python -m uvicorn facial_recognition.app:app --reload --host 127.0.0.1
 ```
 
+**Windows — PowerShell:**
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m uvicorn facial_recognition.app:app --reload --host 127.0.0.1
+```
+
+Se não puder ativar, execute `.\.venv\Scripts\python.exe -m uvicorn facial_recognition.app:app --reload --host 127.0.0.1`.
+
 Use `deactivate` para sair da venv. Não é necessário rodar `main.py` antes da API: esse comando aplica apenas migrations, sem servidor ou seeds, e preserva dados.
 
 ### Alternativa: Poetry
 
-Escolha venv ou Poetry, sem instalar em dois ambientes por engano:
+Escolha venv ou Poetry, sem instalar em dois ambientes por engano. Instale o Poetry antes de usar esta alternativa.
+
+**Linux — Bash:**
 
 ```bash
 poetry env use python3.13
+poetry install
+poetry run uvicorn facial_recognition.app:app --reload --host 127.0.0.1
+```
+
+**Windows — PowerShell:**
+
+```powershell
+$projectPython = py -3.13 -c "import sys; print(sys.executable)"
+poetry env use "$projectPython"
 poetry install
 poetry run uvicorn facial_recognition.app:app --reload --host 127.0.0.1
 ```
@@ -167,12 +246,14 @@ A migration 001 define o schema para bancos novos. Editá-la não atualiza banco
 
 ## Testes
 
-Com a venv ativa e PostgreSQL acessível:
+Com a venv ativa e PostgreSQL acessível, os comandos são iguais no Bash/Linux e PowerShell/Windows:
 
 ```bash
-python -m pip install 'pytest>=8' 'httpx>=0.28'
+python -m pip install "pytest>=8" "httpx>=0.28"
 python -m pytest -q tests
 ```
+
+No Windows sem ativação da venv, use `.\.venv\Scripts\python.exe` no lugar de `python` nos comandos de teste.
 
 O pytest força `ENVIRONMENT=test` e `BIOMETRICS_MODE=real`; os testes de fluxo substituem a inferência, e os testes do simulador configuram o modo explicitamente. Testes com banco usam transação e rollback sobre o schema test; não execute em paralelo nem junto da API test. Não use seu banco com dados importantes para validações. Os smokes com modelos reais podem ser ignorados se não houver dataset local; isso não comprova eficácia biométrica. Veja [isolamento e limites](docs/AUTH_LAB.md#testes-reproduzíveis).
 
