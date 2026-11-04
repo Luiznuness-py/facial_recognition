@@ -9,33 +9,13 @@ import numpy as np
 from PIL import Image, UnidentifiedImageError
 
 from facial_recognition.core.minifasnet import MiniFASNet
+from facial_recognition.exceptions.biometrics import BiometricError
 
 ROOT = Path(__file__).resolve().parents[2]
 MODEL_VERSION = 'sface-2021dec-yunet-2023mar-v1'
 # shortcut: limiar do notebook; recalibrar com capturas reais e FAR/FRR antes de uso além da bancada.
 SIMILARITY_THRESHOLD = 0.2332
 CAPTURE_FRAMES = 5
-
-
-class BiometricError(Exception):
-    """Representa uma falha biométrica com categoria para tratamento HTTP.
-
-    Distingue captura ruim de reprovação de identidade/PAD e de indisponibilidade. A
-    categoria orienta a resposta e define se a falha deve entrar no contador de reprovações.
-
-    Attributes:
-        kind: Categoria quality, rejected, busy ou unavailable.
-    """
-
-    def __init__(self, message: str, kind: str = 'quality'):
-        """Inicializa a mensagem e a categoria da falha biométrica.
-
-        Args:
-            message: Mensagem permitida para orientar o usuário sem expor embeddings.
-            kind: Categoria da falha; quality é o padrão.
-        """
-        super().__init__(message)
-        self.kind = kind
 
 
 def decode_frame(content: bytes) -> np.ndarray:

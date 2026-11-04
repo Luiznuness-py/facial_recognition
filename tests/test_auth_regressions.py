@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 from conftest import ADMIN_PASSWORD, FINAL_PASSWORD, activate_admin, mutate
-from facial_recognition.core.biometrics import BiometricError
+from facial_recognition.exceptions.biometrics import BiometricError
 from test_auth import frames
 
 

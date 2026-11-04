@@ -2,7 +2,7 @@
 import asyncio
 
 
-from facial_recognition.core.biometrics import BiometricError
+from facial_recognition.exceptions.biometrics import BiometricError
 
 class Inference:
     """Executa a avaliação biométrica em uma única tarefa de trabalho por vez.

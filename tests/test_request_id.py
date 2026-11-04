@@ -8,8 +8,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from facial_recognition.app import (
-    response_headers, http_error, validation_error, unexpected_error,
+from facial_recognition.app import response_headers
+from facial_recognition.exceptions.handlers import (
+    http_error, validation_error, unexpected_error,
 )
 from facial_recognition.core.request_limit import RequestLimits
 from facial_recognition.utils.utils import audit

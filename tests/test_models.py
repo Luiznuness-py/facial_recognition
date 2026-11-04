@@ -3,7 +3,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 import pytest
-from facial_recognition.core.biometrics import FaceModels,ROOT,BiometricError,decode_frame
+from facial_recognition.core.biometrics import FaceModels,ROOT,decode_frame
+from facial_recognition.exceptions.biometrics import BiometricError
 
 # O fixture HTTP substitui load durante o lifespan; este smoke precisa dos pesos reais.
 REAL_MODEL_LOAD = FaceModels.load

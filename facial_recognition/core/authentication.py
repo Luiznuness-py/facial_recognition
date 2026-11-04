@@ -15,7 +15,8 @@ from facial_recognition.core.settings import settings
 from facial_recognition.core.queries import UserQueries
 from facial_recognition.utils.utils import now, audit
 from facial_recognition.schemas.base_model import ApiResponse
-from facial_recognition.core.biometrics import BiometricError, MODEL_VERSION, CAPTURE_FRAMES
+from facial_recognition.core.biometrics import MODEL_VERSION, CAPTURE_FRAMES
+from facial_recognition.exceptions.biometrics import BiometricError
 from facial_recognition.core.security import (
     encrypt_vector, decrypt_vector, token_hash,
     set_cookie, rotate_csrf,

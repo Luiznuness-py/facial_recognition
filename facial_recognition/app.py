@@ -12,14 +12,16 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from facial_recognition.routers import router
 from facial_recognition.seed import run_seeds
-from facial_recognition.utils.utils import failure
+from facial_recognition.exceptions.handlers import (
+    http_error, validation_error, unexpected_error,
+)
 from facial_recognition.core.settings import settings
 from facial_recognition.core.token_jwt import TokenJwt
 from facial_recognition.core.inference import Inference
 from facial_recognition.core.biometrics import FaceModels
 from facial_recognition.core.security import hash_password
-from facial_recognition.core.request_limit import RequestLimits
 from facial_recognition.schemas.base_model import ApiResponse
+from facial_recognition.core.request_limit import RequestLimits
 from facial_recognition.core.database import (
     create_pool,
     run_migrations,
@@ -97,6 +99,10 @@ app = FastAPI(
     version=settings.APP_VERSION,
     lifespan=lifespan,
 )
+app.add_exception_handler(StarletteHTTPException, http_error)
+app.add_exception_handler(RequestValidationError, validation_error)
+app.add_exception_handler(Exception, unexpected_error)
+
 app.include_router(router)
 
 app.mount(
@@ -167,52 +173,3 @@ async def response_headers(request: Request, call_next):
     response.headers['Permissions-Policy']='camera=(self), microphone=()'
     response.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
     return response
-
-
-@app.exception_handler(StarletteHTTPException)
-async def http_error(request, error):
-    """Converte exceções HTTP do framework para o envelope da API.
-
-    Args:
-        request: Requisição associada; mantida na assinatura exigida pelo handler.
-        error: Exceção com status_code, detail e cabeçalhos opcionais.
-
-    Returns:
-        JSONResponse: Falha padronizada com o status e os cabeçalhos originais.
-    """
-    return failure(error.status_code,error.detail,error.headers, request_id=request.state.request_id)
-
-
-@app.exception_handler(RequestValidationError)
-async def validation_error(request, error):
-    """Responde a falhas de validação sem devolver o conteúdo recebido.
-
-    Não inclui input, senha ou o detalhamento bruto do Pydantic na resposta.
-
-    Args:
-        request: Requisição associada ao erro de validação.
-        error: RequestValidationError recebido pelo FastAPI.
-
-    Returns:
-        JSONResponse: Envelope genérico com status 422.
-    """
-    return failure(422,'Confira os campos enviados e seus limites. Nenhum campo extra é permitido.', request_id=request.state.request_id)
-
-
-@app.exception_handler(Exception)
-async def unexpected_error(request, error):
-    """Registra o tipo da falha inesperada e devolve uma mensagem genérica.
-
-    O log contém somente caminho e nome da classe da exceção; não copia corpo da requisição,
-    credenciais nem a mensagem interna da falha.
-
-    Args:
-        request: Requisição cujo caminho identifica a operação que falhou.
-        error: Exceção não tratada por um handler mais específico.
-
-    Returns:
-        JSONResponse: Envelope de erro com status 500.
-    """
-    logging.error('Falha interna na operação %s (%s) request_id=%s',
-                  request.url.path, type(error).__name__, request.state.request_id)
-    return failure(500,'Não foi possível concluir a operação. Tente novamente.', request_id=request.state.request_id)

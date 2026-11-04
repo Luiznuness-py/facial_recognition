@@ -8,7 +8,8 @@ from PIL import Image
 
 from facial_recognition.core.token_jwt import TokenJwt
 from facial_recognition.core.security import encrypt_vector,decrypt_vector
-from facial_recognition.core.biometrics import BiometricError,decode_frame
+from facial_recognition.core.biometrics import decode_frame
+from facial_recognition.exceptions.biometrics import BiometricError
 from conftest import mutate,activate_admin,FINAL_PASSWORD
 
 
