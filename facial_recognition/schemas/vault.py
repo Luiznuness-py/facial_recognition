@@ -90,7 +90,7 @@ class SentReportResponse(BaseSchema):
         vault_id, validation_id: Identificadores do registro e da investigação.
         title, agent, protocol: Identificação mínima do envio acompanhado.
         decision_status: Situação exibida, incluindo notícia retirada.
-        new_validation_request: Pedido compartilhável do N3, quando houver.
+        new_validation_request: Pedido emitido por este dossiê, quando houver.
     """
 
     vault_id: UUID

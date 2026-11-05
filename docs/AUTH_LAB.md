@@ -1,8 +1,8 @@
-# Bancada de autenticação biométrica
+# Autenticação, biometria e validação técnica
 
-> A interface de `/lab` evoluiu para o frontend institucional. Consulte [FRONTEND.md](FRONTEND.md) para a navegação atual, as telas preparadas e o roteiro manual. Este guia continua descrevendo a autenticação existente; as rotas científicas ainda dependem de implementação.
+> A interface de `/lab` evoluiu para o frontend institucional. Consulte [FRONTEND.md](FRONTEND.md) para a navegação atual, as telas preparadas e o roteiro manual. Este guia continua descrevendo a autenticação existente; as rotas científicas e administrativas estão implementadas.
 
-A autenticação em `/lab` permite testar o cadastro pelo ADMIN, a primeira entrada e o login posterior. Usa as tabelas da migration existente; não cria banco paralelo para o produto nem rotas que pulam a autenticação. A regra atual é a de BUSINESS_RULES.md e ENDPOINTS.md; SYSTEM.md foi identificado como histórico e não orienta a implementação atual.
+A autenticação em `/lab` permite testar o cadastro pelo ADMIN, a primeira entrada e o login posterior. Usa as tabelas da migration existente; não cria banco paralelo para o produto nem rotas que pulam a autenticação. A regra atual é a de BUSINESS_RULES.md e ENDPOINTS.md; [SYSTEM.md](SYSTEM.md) descreve a arquitetura atual e registra a substituição do desenho histórico de atores.
 
 ## Preparar e executar
 
@@ -11,15 +11,15 @@ Na raiz do projeto, com o Python 3.13 do ambiente Poetry:
 ```bash
 poetry install --extras test
 # Copie .env.example para .env se ainda não existir e configure os valores locais.
-docker compose up -d postgres
+docker compose up -d --wait postgres
 poetry run uvicorn facial_recognition.app:app --reload --host 127.0.0.1
 ```
 
-Se o ambiente não estiver ativado, use `poetry run` antes de `python` e `uvicorn`. O lifespan aplica migrations e executa os seeds no PostgreSQL configurado no `.env` a cada início; suba o banco antes com `docker compose up -d`. O Poetry está configurado para buscar apenas torch no índice CPU oficial. Se usar pip, a instalação CPU do PyTorch pode ser feita no ambiente com `python -m pip install torch --index-url https://download.pytorch.org/whl/cpu`, evitando pacotes CUDA desnecessários. Não instale o requirements antigo do fornecedor: suas versões são de 2020 e incompatíveis com Python 3.13.
+Se o ambiente não estiver ativado, use `poetry run` antes de `python` e `uvicorn`. O lifespan aplica migrations e executa os seeds no PostgreSQL configurado no `.env` a cada início; suba o banco antes com `docker compose up -d`. O Poetry está configurado para buscar apenas torch no índice CPU oficial. Se usar pip, a instalação CPU do PyTorch pode ser feita no ambiente com `python -m pip install torch --index-url https://download.pytorch.org/whl/cpu`, evitando pacotes CUDA desnecessários. Use as dependências da raiz do projeto; arquivos de instalação de fornecedores não definem o ambiente desta aplicação.
 
 Abra **http://127.0.0.1:8000/lab**. ADMIN usa `ADMIN_EMAIL` e `ADMIN_SECRET`, já existentes em Settings. A primeira entrada exige uma senha definitiva. Senhas novas e temporárias devem ter entre 8 e 128 caracteres e não podem estar na lista local de senhas comuns; login aceita de 1 a 128 caracteres. O seed valida a senha inicial somente se precisar criar o ADMIN. O bootstrap é idempotente: não redefine senha, não restaura excluídos e não cria outro ADMIN quando já existe um, mesmo com email diferente. ADMIN_SECRET é apenas a senha temporária inicial, nunca é o segredo de um JWT.
 
-SECRET_KEY, já existente, precisa ter pelo menos 32 bytes aleatórios. Exemplo para gerar um valor local: `python -c "import secrets; print(secrets.token_urlsafe(48))"`. Coloque-o no `.env`, não em arquivos versionados. Trocar essa raiz invalida JWTs e impede ler vetores criptografados com a raiz anterior: preserve-a enquanto precisar desses cadastros. BIOMETRICS_MODE também é obrigatório; escolha real ou simulated conforme a seção ao final deste guia. Os caminhos e limiares dos modelos ficam no código.
+SECRET_KEY, já existente, precisa ter pelo menos 32 bytes aleatórios. Exemplo para gerar um valor local: `python -c "import secrets; print(secrets.token_urlsafe(48))"`. Coloque-o no `.env`, não em arquivos versionados. Trocar essa raiz invalida JWTs e impede ler vetores criptografados com a raiz anterior: preserve-a enquanto precisar desses cadastros. BIOMETRICS_MODE também é obrigatório; escolha real ou simulated conforme a seção [Modo obrigatório de biometria](#modo-obrigatório-de-biometria). Os caminhos e limiares dos modelos ficam no código.
 
 O acesso HTTP sem cookie Secure é restrito a loopback (`localhost`, `127.0.0.1` ou `::1`) em `development` ou `test`. Em `production`, a emissão de cookies exige HTTPS mesmo em loopback. Para acessar por outro computador é necessário servir na mesma origem HTTPS com certificado confiável; não há exceção de rede que desative a proteção. A câmera exige contexto seguro (HTTPS ou localhost) e permissão do navegador. O bootstrap e a câmera real não foram executados contra contas do banco pessoal durante os testes automatizados.
 
@@ -68,7 +68,7 @@ Cada requisição HTTP recebe um UUID gerado no servidor em `request.state.reque
 
 ### Comando manual e reset
 
-O [main.py](../main.py) aplica migrations e fecha o pool, preservando dados; não inicia a API nem executa seeds. O comando normal para iniciar backend e frontend é Uvicorn. Consulte o [README](../README.md#preparar-o-ambiente-local) para venv, Poetry, configuração e Docker Compose.
+O [main.py](../main.py) aplica migrations e fecha o pool, preservando dados; não inicia a API nem executa seeds. O comando normal para iniciar backend e frontend é Uvicorn. Consulte o [README](../README.md#executar-localmente) para venv, Poetry, configuração e Docker Compose.
 
 `drop_all_tables` remove e recria o schema test em ambiente test ou public em development, recusando outros ambientes. O lifespan chama essa função no encerramento normal **somente em test**, inclusive em reinícios por reload; development preserva dados. Uma interrupção forçada pode impedir o cleanup. É exclusão física, diferente do soft_delete do produto. Não compartilhe o schema test entre instâncias durante uso ou testes.
 
@@ -123,9 +123,47 @@ Os testes cobrem JWT por finalidade/expiração/claims, criptografia vinculada a
 
 [test_auth_regressions.py](../tests/test_auth_regressions.py) cobre senha excluída durante a ativação, exclusão de senha ou tentativa durante a inferência aprovada/reprovada, ausência de gravações parciais, recurso/autor/alvo da auditoria, logout por sessão/etapa/refresh e uploads malformados. Esses casos verificam o fluxo com inferência substituída explicitamente; os testes de pesos reais continuam separados.
 
-## Escopo que continua pendente
+## Escopo implementado e limites
 
-Não foram implementados os endpoints científicos, pedidos por N2/N3/aprovação pelo ADMIN, recuperação administrada, revalidação de temporária nem troca voluntária da senha após ativação. O caminho de cadastro direto pelo ADMIN usa o contrato de POST /access-requests; os demais fluxos dessa rota continuam planejados. Por isso, uma temporária vencida não deve ser contornada editando dados ou desativando checks; o endpoint de revalidação é uma próxima etapa. Existe a simulação facial explícita de development/test descrita ao final; ela não permite emissão livre de tokens.
+Estão implementados pedidos por N2/N3 e decisão ADMIN, ciclo administrativo das contas, revalidação da temporária, recuperação PASSWORD/BIOMETRIC/BOTH e troca voluntária de senha com revogação das sessões. A troca exige a sessão iniciadora ainda vigente e reconhecimento facial para N1/N2/N3; biometria real e simulada conduzem à etapa de senha sem criar outra sessão.
+
+O laboratório cobre cadastro e primeira investigação atômicos, consultas por vínculo/equipe, rascunho e entregas preservadas, participantes e responsável, revisão, cofre, decisões N3, atendimento de pedido de nova investigação e publicação/retirada. `core/accounts.py` e `core/laboratory.py` concentram regras compartilhadas; as transações ficam nos routers. Não há nova migration nem novas dependências.
+
+A [carga fictícia manual](../README.md#carga-fictícia-de-desenvolvimento) só executa em development/simulated e não modifica senhas existentes. Os testes comuns usam rollback; os testes de concorrência usam conexões independentes e removem somente seus schemas aleatórios `race_<uuid>` e `auth_race_<uuid>` em finally.
+
+A integração visual com este backend continua sem prova: o controle de navegador está desativado nas configurações Work desta sessão. A eficácia do reconhecimento e do PAD, a captura física e FAR/FRR exigem avaliação própria. Os testes HTTP que substituem inferência ou usam simulação verificam estados e autorização, sem comprovar biometria.
+
+## Validação da implementação — 04/11/2026
+
+A suíte completa final passou: **152 testes e 8 subtestes**, com 6 avisos, em **134,19 segundos**, usando Python 3.13 e PostgreSQL local. Comando: `python -m pytest -q --disable-warnings --tb=short`. Nenhum teste foi ignorado nessa execução.
+
+- [test_administration.py](../tests/test_administration.py): catálogos, pedidos e isolamento por solicitante, aprovação/rejeição, ciclo das contas, vagas, recuperações, primeira ativação preservada, troca de senha com biometria real substituída/simulada, sessão iniciadora revogada, auditoria administrativa e carga fictícia (repetição, restrições de ambiente e rollback por conflito).
+- [test_laboratory.py](../tests/test_laboratory.py): escopo por equipe e investigação, rascunho, entregas/devolução, candidatos e participantes, responsável, cadastro preservado inclusive com histórico excluído, estado da amostra, envio selado, três decisões N3, publicação/retirada e duas gerações consecutivas de pedidos N3. As duas listagens têm regressões de contagem de consultas para páginas de 1 e 100 registros. Cofre e decisões continuam exclusivos de N3 mesmo com permissões atribuídas por engano a N2. Auditoria do envio referencia o ID do dossiê.
+- [test_auth_concurrency.py](../tests/test_auth_concurrency.py): refresh contra revogação nas duas ordens, replay simultâneo, troca de senha contra login/logout e troca de conta contra gravação de auditoria. Revalida o token após localizar sem lock; preserva revogação confirmada, vínculo do sucessor e expiração absoluta.
+- [test_auth_regressions.py](../tests/test_auth_regressions.py): as conclusões de ativação/recuperação e troca voluntária comparam a senha fora do loop, inclusive ao recusar senha repetida; o teste verifica a ausência de loop na thread, sem limite de tempo.
+- [test_laboratory_concurrency.py](../tests/test_laboratory_concurrency.py): conexões independentes disputam criação, envio de análise, decisões incompatíveis e troca de responsável contra escrita. Confere perda de edição do responsável anterior, preservação do snapshot após mudança de nome e compartilhamentos simultâneos entre dois N1.
+- [test_frontend.py](../tests/test_frontend.py): assets e cabeçalhos, além de conferir as **59 operações documentadas** no OpenAPI. Os demais testes de autenticação, cookies, request-id e modelos também integraram a execução completa.
+
+Passaram sintaxe de 71 arquivos Python e 7 JavaScript, conferência de docstrings das funções/classes de topo da implementação alterada, imports de todos os módulos da aplicação (incluindo schemas), 388 links locais e `git diff --check`. As 59 operações documentadas estão no OpenAPI. Não houve commit/push, alteração de migrations aplicadas ou reset manual do schema public/volume. A validação visual e a avaliação biométrica física continuam com os limites descritos acima.
+
+Antes das correções, os testes permanentes reproduziram os quatro problemas: deadlock real entre refresh/revogação, comparação no loop, pedido N3 anterior no card do novo envio e consultas por amostra. Reproduziram também deadlocks de login/logout contra troca de senha e de compartilhamentos cruzados. O lock exclusivo das contas do navegador também foi testado contra a FK de autoria da auditoria: `FOR NO KEY UPDATE` evita esse bloqueio, mantendo a serialização. Candidatos usam `FOR SHARE`, que impede alteração da conta sem impedir referências de autoria. Os casos confirmados desta revisão foram corrigidos; não há outro bug confirmado pendente neste recorte. Isso não demonstra ausência de outras condições de corrida ou falhas fora dos cenários testados.
+
+| Requisição HTTP local | Consultas antes, páginas 1/100 | Consultas após, páginas 1/100 |
+| --- | --- | --- |
+| Listagem de amostras | 5 / 104 | 4 / 4 |
+| Cards de investigações | 8 / 305 | 5 / 5 |
+
+A contagem inclui autenticação e autorização reais do fixture. Na rodada direcionada final, a listagem de amostras levou 10,21 ms para um item e 10,60 ms para 100 itens. São medições pontuais locais, sem aquecimento ou estudo de carga, não benchmarks de produção. As regressões exigem contagem constante e verificam a regra de edição histórica, sem impor limite de latência. A bateria ampliada de fluxos conectados passou com 46 testes em 95,51 s; a rodada final de laboratório, com 10 testes em 29,25 s; ambas tiveram 6 avisos.
+
+## Revisão da documentação e docstrings — 04/11/2026
+
+Os 13 arquivos Markdown do projeto foram revisados. O README organiza apresentação, funcionalidades, estrutura, configuração, execução Linux/Windows, testes e diagnóstico local. SYSTEM.md passou a descrever a arquitetura atual; os guias por responsabilidade, contratos, banco, exemplos, modelos e créditos foram alinhados à implementação. Resultados históricos continuam identificados como históricos.
+
+A revisão conferiu 331 funções/métodos nos 71 arquivos Python da aplicação, testes e comando manual; 177 docstrings foram completadas. Foram documentados parâmetros, retornos ou yields, exceções e pré-condições/efeitos relevantes. Auxiliares assíncronos e adaptadores dos testes também estão incluídos. A comparação de AST com o estado anterior à revisão, removendo somente docstrings, confirmou que nenhuma lógica, assinatura ou valor executável foi alterado. Artefatos locais ignorados em dataset/ e work/ não integram esse inventário de fontes.
+
+A suíte foi repetida depois das alterações: **152 testes e 8 subtestes passaram, com 6 avisos, em 132,56 s**. Passaram também os imports dos 55 módulos da aplicação, as 59 operações documentadas no OpenAPI, sintaxe dos sete módulos JavaScript, parsing dos 13 Markdown, 409 links locais com âncoras, sintaxe Bash dos exemplos e git diff --check. Os quatro hashes dos pesos locais correspondem aos registrados em models/README.md.
+
+Não houve commit/push, alteração de dependências, migrations ou lógica de negócio. A instalação do zero, os comandos PowerShell em Windows nativo, links externos, renderização visual do README e a integração com câmera física não foram repetidos nessa revisão. As limitações de eficácia biométrica e de integração visual do backend permanecem as registradas acima.
 
 ## Histórico de validações — 26/10/2026
 
@@ -162,7 +200,7 @@ Defina `BIOMETRICS_MODE=real` ou `BIOMETRICS_MODE=simulated` no `.env` antes de 
 
 Em `real`, o pipeline e seus limites permanecem ativos. Em `simulated`, o lifespan não carrega os pesos nem executa inferência. Após email/senha corretos, `GET /api/v1/auth/flow` informa `biometrics_mode`; a interface mostra “Biometria simulada” e oferece continuar sem câmera. O POST `/api/v1/auth/biometric/simulate`, sem corpo, exige CSRF e tentativa restrita vigente, revalida conta e temporária sob bloqueio e registra `BIOMETRIC_SIMULATED`. A ativação ainda exige senha definitiva. As rotas reais de upload recusam uso no modo simulado.
 
-A simulação não grava vetores fictícios nem altera vetores reais existentes. Ela conclui a exigência facial da conta para permitir os testes de fluxo; isso não comprova cadastro facial. Ao voltar para `real`, uma conta ativada sem vetor real precisará do fluxo administrativo de recuperação facial (ainda pendente) ou de um novo cadastro fictício. Use somente contas de desenvolvimento. Não reutilize esses cadastros como cadastros biométricos de produção.
+A simulação não grava vetores fictícios nem altera vetores reais existentes. Ela conclui a exigência facial da conta para permitir os testes de fluxo; isso não comprova cadastro facial. Ao voltar para `real`, uma conta ativada sem vetor real precisará do fluxo administrativo de recuperação facial pelo ADMIN ou de um novo cadastro fictício. Use somente contas de desenvolvimento. Não reutilize esses cadastros como cadastros biométricos de produção.
 
 JWTs e hashes dos tokens opacos usam separação por modo: uma credencial emitida em simulação não autentica nem renova sessão no modo real. Reinicie o servidor ao trocar a configuração e faça novo login. A simulação não substitui senha, autorização, CSRF ou as regras do PostgreSQL. Os testes existentes fixam `BIOMETRICS_MODE=real` e substituem inferência somente nos casos de fluxo; testes específicos cobrem o modo simulado sem câmera.
 
@@ -173,4 +211,4 @@ A bateria completa passou com **107 testes em 88,86 s**, em PostgreSQL 16 descar
 
 Também passaram pip check, conferência offline do requirements contra o ambiente instalado, poetry check, configuração do Compose, sintaxe Python/JavaScript, links locais e revisão de docstrings das definições Python. A instalação do zero com venv não foi concluída nesta máquina: Python 3.13 está instalado sem o pacote python3.13-venv/ensurepip. O README documenta esse pré-requisito; não foi instalado pacote de sistema nesta rodada.
 
-Os percursos dos quatro papéis no navegador foram repetidos com API fictícia isolada. A edição cadastral respeitou can_edit false/true/ausente, independentemente da página/filtro. Isso não comprova as rotas científicas, que continuam pendentes, nem a eficácia biométrica ou o uso em celular físico. O container descartável é removido ao finalizar a validação; o banco do projeto não é resetado.
+Os percursos dos quatro papéis no navegador foram repetidos com API fictícia isolada. A edição cadastral respeitou can_edit false/true/ausente, independentemente da página/filtro. Esse registro histórico com API fictícia não comprova a integração visual com as rotas científicas hoje implementadas, nem a eficácia biométrica ou o uso em celular físico. O container descartável é removido ao finalizar a validação; o banco do projeto não é resetado.

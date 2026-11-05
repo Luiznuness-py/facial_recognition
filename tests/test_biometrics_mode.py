@@ -17,7 +17,18 @@ from facial_recognition.utils.utils import now
 
 
 def test_mode_is_required(monkeypatch):
-    """Rejeita configuração sem escolha explícita do modo biométrico."""
+    """Rejeita configuração sem escolha explícita do modo biométrico.
+
+    Args:
+        monkeypatch: Fixture pytest que substitui configuração/dependências e as restaura ao
+            fim.
+
+    Returns:
+        None: O cenário termina quando todas as asserções são satisfeitas.
+
+    Raises:
+        AssertionError: Quando o comportamento observado diverge do resultado esperado.
+    """
     monkeypatch.delenv('BIOMETRICS_MODE', raising=False)
     with pytest.raises(ValidationError) as error:
         Settings(_env_file=None, ADMIN_SECRET='dummy', SECRET_KEY='x' * 32)
@@ -30,7 +41,19 @@ def test_mode_is_required(monkeypatch):
     ('production', 'real', True), ('development', 'invalid', False),
 ])
 def test_mode_configuration(environment, mode, valid):
-    """Restringe simulação a development/test e recusa valores desconhecidos."""
+    """Restringe simulação a development/test e recusa valores desconhecidos.
+
+    Args:
+        environment: Ambiente parametrizado para verificar as restrições de execução.
+        mode: Valor de BIOMETRICS_MODE parametrizado para verificar configuração ou isolamento.
+        valid: Resultado esperado para a combinação de configuração parametrizada.
+
+    Returns:
+        None: O cenário termina quando todas as asserções são satisfeitas.
+
+    Raises:
+        AssertionError: Quando o comportamento observado diverge do resultado esperado.
+    """
     args = dict(_env_file=None, ENVIRONMENT=environment, BIOMETRICS_MODE=mode,
                 ADMIN_SECRET='dummy', SECRET_KEY='x' * 32)
     if valid:
@@ -41,7 +64,18 @@ def test_mode_configuration(environment, mode, valid):
 
 
 def test_simulated_credentials_do_not_validate_in_real_mode(monkeypatch):
-    """Impede reutilizar JWT ou refresh de simulação no modo real."""
+    """Impede reutilizar JWT ou refresh de simulação no modo real.
+
+    Args:
+        monkeypatch: Fixture pytest que substitui configuração/dependências e as restaura ao
+            fim.
+
+    Returns:
+        None: O cenário termina quando todas as asserções são satisfeitas.
+
+    Raises:
+        AssertionError: Quando o comportamento observado diverge do resultado esperado.
+    """
     tokens = TokenJwt('x' * 32)
     monkeypatch.setattr(settings, 'BIOMETRICS_MODE', 'simulated')
     token = tokens.create_token(uuid4(), 'ACCESS', 900, session_id=str(uuid4()))
@@ -54,7 +88,21 @@ def test_simulated_credentials_do_not_validate_in_real_mode(monkeypatch):
 
 @pytest.mark.parametrize('stage,password_change', [('ENROLL_FACE', True), ('VERIFY_FACE', False)])
 def test_simulation_transitions_without_vectors(monkeypatch, stage, password_change):
-    """Confere a etapa seguinte e auditoria sem gravar vetores fictícios."""
+    """Confere a etapa seguinte e auditoria sem gravar vetores fictícios.
+
+    Args:
+        monkeypatch: Fixture pytest que substitui configuração/dependências e as restaura ao
+            fim.
+        stage: Etapa restrita parametrizada do fluxo de autenticação.
+        password_change: Indica se a conta do cenário exige definição de senha após a etapa
+            facial.
+
+    Returns:
+        None: O cenário termina quando todas as asserções são satisfeitas.
+
+    Raises:
+        AssertionError: Quando o comportamento observado diverge do resultado esperado.
+    """
     monkeypatch.setattr(settings, 'BIOMETRICS_MODE', 'simulated')
     monkeypatch.setattr(settings, 'ENVIRONMENT', 'development')
     connection = MagicMock()
@@ -80,7 +128,23 @@ def test_simulation_transitions_without_vectors(monkeypatch, stage, password_cha
     ('simulated', 'test', 'VERIFY_FACE', b'{}', 422),
 ])
 def test_simulation_rejects_forbidden_calls(monkeypatch, mode, environment, stage, body, status):
-    """Recusa modo, ambiente, etapa ou corpo incompatíveis antes da transação."""
+    """Recusa modo, ambiente, etapa ou corpo incompatíveis antes da transação.
+
+    Args:
+        monkeypatch: Fixture pytest que substitui configuração/dependências e as restaura ao
+            fim.
+        mode: Valor de BIOMETRICS_MODE parametrizado para verificar configuração ou isolamento.
+        environment: Ambiente parametrizado para verificar as restrições de execução.
+        stage: Etapa restrita parametrizada do fluxo de autenticação.
+        body: Bytes do corpo HTTP usados para verificar a recusa de conteúdo na simulação.
+        status: Código HTTP esperado para o cenário parametrizado.
+
+    Returns:
+        None: O cenário termina quando todas as asserções são satisfeitas.
+
+    Raises:
+        AssertionError: Quando o comportamento observado diverge do resultado esperado.
+    """
     monkeypatch.setattr(settings, 'BIOMETRICS_MODE', mode)
     monkeypatch.setattr(settings, 'ENVIRONMENT', environment)
     request = SimpleNamespace(body=AsyncMock(return_value=body))
@@ -93,7 +157,18 @@ def test_simulation_rejects_forbidden_calls(monkeypatch, mode, environment, stag
 
 
 def test_simulated_startup_does_not_load_models(monkeypatch):
-    """Inicializa recursos simulados sem carregar pesos e garante fechamento do pool."""
+    """Inicializa recursos simulados sem carregar pesos e garante fechamento do pool.
+
+    Args:
+        monkeypatch: Fixture pytest que substitui configuração/dependências e as restaura ao
+            fim.
+
+    Returns:
+        None: O cenário termina quando todas as asserções são satisfeitas.
+
+    Raises:
+        AssertionError: Quando o comportamento observado diverge do resultado esperado.
+    """
     import facial_recognition.app as application
     monkeypatch.setattr(settings, 'BIOMETRICS_MODE', 'simulated')
     monkeypatch.setattr(settings, 'ENVIRONMENT', 'test')
@@ -107,7 +182,11 @@ def test_simulated_startup_does_not_load_models(monkeypatch):
     monkeypatch.setattr(application, 'drop_all_tables', AsyncMock())
 
     async def scenario():
-        """Executa o cenário assíncrono isolado e devolve seus resultados."""
+        """Executa o cenário assíncrono isolado e devolve seus resultados.
+
+        Returns:
+            None: Contexto assíncrono encerrado após as verificações do cenário.
+        """
         async with application.lifespan(application.app):
             assert application.app.state.inference is None
     asyncio.run(scenario())
@@ -116,7 +195,20 @@ def test_simulated_startup_does_not_load_models(monkeypatch):
 
 
 def test_simulated_account_flow_with_database(client, monkeypatch):
-    """Percorre ativação/login simulado reais no banco e recusa credenciais no modo real."""
+    """Percorre ativação/login simulado reais no banco e recusa credenciais no modo real.
+
+    Args:
+        client: TestClient HTTPS do fixture, com PostgreSQL transacional e inferência
+            substituída.
+        monkeypatch: Fixture pytest que substitui configuração/dependências e as restaura ao
+            fim.
+
+    Returns:
+        None: O cenário termina quando todas as asserções são satisfeitas.
+
+    Raises:
+        AssertionError: Quando o comportamento observado diverge do resultado esperado.
+    """
     from conftest import activate_admin, mutate, FINAL_PASSWORD
     monkeypatch.setattr(settings, 'BIOMETRICS_MODE', 'simulated')
     activate_admin(client)
@@ -138,7 +230,11 @@ def test_simulated_account_flow_with_database(client, monkeypatch):
     assert mutate(client, '/access-requests', account).status_code == 403
 
     async def check_database():
-        """Confere ausência de vetor e presença do evento explícito da simulação."""
+        """Confere ausência de vetor e presença do evento explícito da simulação.
+
+        Returns:
+            None: Operação concluída e verificações satisfeitas, quando presentes.
+        """
         async with client.app.state.db_pool.acquire() as connection:
             assert await connection.fetchval('SELECT count(*) FROM vectors') == 0
             assert await connection.fetchval(

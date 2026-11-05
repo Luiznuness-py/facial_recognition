@@ -12,7 +12,21 @@ from facial_recognition.core.settings import settings
 @pytest.mark.parametrize('scheme', ['http', 'https'])
 @pytest.mark.parametrize('host', ['localhost', '127.0.0.1', '[::1]', '192.168.1.50', 'testserver'])
 def test_cookie_transport(monkeypatch, environment, scheme, host):
-    """Valida transporte permitido e atributos dos quatro cookies por ambiente."""
+    """Valida transporte permitido e atributos dos quatro cookies por ambiente.
+
+    Args:
+        monkeypatch: Fixture pytest que substitui configuração/dependências e as restaura ao
+            fim.
+        environment: Ambiente parametrizado para verificar as restrições de execução.
+        scheme: Esquema HTTP ou HTTPS usado para verificar o transporte dos cookies.
+        host: Hostname parametrizado para verificar as restrições de loopback.
+
+    Returns:
+        None: O cenário termina quando todas as asserções são satisfeitas.
+
+    Raises:
+        AssertionError: Quando o comportamento observado diverge do resultado esperado.
+    """
     monkeypatch.setattr(settings, 'ENVIRONMENT', environment)
     request = Request({
         'type': 'http', 'scheme': scheme, 'path': '/', 'root_path': '',

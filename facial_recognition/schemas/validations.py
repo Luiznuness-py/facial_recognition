@@ -123,7 +123,7 @@ class ValidationCardResponse(BaseSchema):
         can_edit, can_submit: Indicações de ações disponíveis na interface.
         closure_reason, return_reason: Motivos autorizados de encerramento N2
             e da devolução mais recente.
-        new_validation_request: Pedido N3 autorizado à equipe, quando houver.
+        new_validation_request: Pedido N3 que originou esta tarefa, quando houver.
     """
 
     id: UUID
@@ -155,7 +155,7 @@ class ValidationResponse(AuditSchema):
         closed_at, closed_by, closure_reason, closure_cause: Encerramento permitido,
             com justificativa apenas do N2.
         previous_validation_id: Investigação anterior quando atende pedido N3.
-        new_validation_request: Pedido N3 autorizado à equipe, quando houver.
+        new_validation_request: Pedido N3 que originou esta tarefa, quando houver.
     """
 
     id: UUID

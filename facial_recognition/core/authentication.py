@@ -126,6 +126,10 @@ class Authentication:
             or current['expires_at'] <= now()
         ):
             raise HTTPException(401, 'Esta etapa já foi utilizada ou expirou.')
+        if current['operation'] == 'PASSWORD_CHANGE' and not await connection.fetchval('''SELECT EXISTS(
+            SELECT 1 FROM sessions WHERE id=$1 AND user_id=$2 AND NOT soft_delete AND revoked_at IS NULL AND expires_at>NOW())''',
+            current['initiating_session_id'], user['id']):
+            raise HTTPException(401, 'Sessão iniciadora encerrada.')
         return user
 
 
@@ -294,7 +298,7 @@ class Authentication:
                 await connection.execute("INSERT INTO vectors(user_id,ciphertext,nonce,key_version,model_version) VALUES($1,$2,$3,'derived-v1',$4)", user['id'], encrypted, nonce, MODEL_VERSION)
                 await connection.execute('UPDATE users SET biometric_enrollment_required=FALSE WHERE id=$1', user['id'])
             await audit(connection, user['id'], 'FACE_ENROLLED' if enroll else 'FACE_VERIFIED', 'authentication_attempts', attempt['id'], request_id=request.state.request_id)
-            if user['password_change_required']:
+            if user['password_change_required'] or attempt['operation'] == 'PASSWORD_CHANGE':
                 return ApiResponse(data=await self.issue_stage(connection, request, response, attempt, 'CHANGE_PASSWORD'))
             await connection.execute("UPDATE authentication_attempts SET status='COMPLETED',completed_at=NOW() WHERE id=$1", attempt['id'])
             return ApiResponse(data=await self.issue_session(connection, request, response, user))

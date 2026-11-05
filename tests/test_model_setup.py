@@ -12,6 +12,12 @@ def test_startup_rejects_missing_models_before_opening_database(monkeypatch):
 
     Args:
         monkeypatch: Substitui o carregamento e o pool, impedindo rede ou acesso ao banco.
+
+    Returns:
+        None: O cenário termina após todas as asserções.
+
+    Raises:
+        AssertionError: Quando um resultado observado diverge do comportamento esperado.
     """
     def missing_models(self):
         """Simula a ausência de pesos locais.

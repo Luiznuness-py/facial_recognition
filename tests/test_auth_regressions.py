@@ -237,3 +237,50 @@ def test_invalid_multipart_returns_validation_error(client, content_type):
     assert 'MultipartParseError' not in response.text
     assert database_value(client, 'SELECT count(*) FROM vectors') == 0
     assert database_value(client, "SELECT biometric_failure_count FROM users WHERE email='review@example.com'") == 0
+def test_password_comparisons_run_outside_event_loop(client,monkeypatch):
+    """Ativação e troca verificam Argon2 em thread, inclusive ao recusar a mesma senha.
+
+    Args:
+        client: TestClient HTTPS do fixture, com PostgreSQL transacional e inferência
+            substituída.
+        monkeypatch: Fixture pytest que substitui configuração/dependências e as restaura ao
+            fim.
+
+    Returns:
+        None: O cenário termina quando todas as asserções são satisfeitas.
+
+    Raises:
+        AssertionError: Quando o comportamento observado diverge do resultado esperado.
+    """
+    import asyncio
+    from conftest import ADMIN_PASSWORD, FINAL_PASSWORD, mutate
+    from facial_recognition.routers import auth
+    original=auth.check_password
+    calls=[]
+    def compare(password,encoded):
+        """Registra se a thread tem loop em execução e delega a comparação ao Argon2 real, sem substituir seu resultado..
+
+        Args:
+            password: Senha fictícia candidata cuja comparação será observada pelo teste.
+            encoded: Hash Argon2 atual da credencial fictícia usada no teste.
+
+        Returns:
+            bool: Resultado real da verificação da senha fictícia.
+        """
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            calls.append('thread')
+        else:
+            calls.append('loop')
+        return original(password,encoded)
+    assert mutate(client,'/auth/login',dict(email='admin@example.com',password=ADMIN_PASSWORD)).status_code==200
+    monkeypatch.setattr(auth,'check_password',compare)
+    for password,status in ((ADMIN_PASSWORD,422),(FINAL_PASSWORD,200)):
+        assert mutate(client,'/auth/password/complete',dict(new_password=password,password_confirmation=password)).status_code==status
+    assert calls==['thread','thread'],calls
+    assert mutate(client,'/auth/password-change/start',dict(current_password=FINAL_PASSWORD)).status_code==200
+    calls.clear()
+    for password,status in ((FINAL_PASSWORD,422),('Changed!Thread2026',200)):
+        assert mutate(client,'/auth/password-change/complete',dict(new_password=password,password_confirmation=password)).status_code==status
+    assert calls==['thread','thread'],calls

@@ -1,4 +1,4 @@
-# Pesos dos modelos
+# Modelos biométricos: origem, integridade e uso
 
 Estes quatro arquivos são versionados diretamente no Git e acompanham o clone do
 projeto, sem Git LFS ou script de download. Com BIOMETRICS_MODE=real, o FastAPI carrega os pesos locais no
@@ -34,3 +34,11 @@ a5eb02e1843f19b5386b953cc4c9f011c3f985d0ee2bb9819eea9a142099bec0  models/2.7_80x
 
 Se algum arquivo estiver ausente ou corrompido, restaure a cópia correspondente do
 repositório. Não é necessário baixar os pesos de serviços externos para executar a API.
+
+## Conferência no Windows
+
+No PowerShell, a partir da raiz do repositório, use `Get-FileHash models/*.onnx, models/*.pth -Algorithm SHA256` e compare os valores com a tabela textual acima. O hash identifica o arquivo esperado; não mede precisão, robustez antifraude ou licença de uso do sistema inteiro.
+
+## Integração e limites
+
+`FaceModels.load` carrega os pesos uma vez no lifespan do modo `real`; `Inference` executa as capturas fora do loop HTTP. O modo `simulated` não carrega os pesos nem gera embeddings. Os testes com arquivos locais verificam carregamento, formatos e execução; calibração, acurácia e resistência a ataques dependem de avaliação própria. Consulte [AUTH_LAB.md](../docs/AUTH_LAB.md) para pipeline, parâmetros e evidências.

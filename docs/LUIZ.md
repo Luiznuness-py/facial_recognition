@@ -1,22 +1,26 @@
 # Luiz - Base, segurança e apoio à integração
 
-Você prepara a estrutura que Amanda e João vão usar, implementa contas e autenticação e assume as regras que exigem mais cuidado. Eles implementam os endpoints das funcionalidades, incluindo validação dos dados, consultas e testes, usando o padrão que você entregar.
+> Referência de responsabilidade: base, contas, autenticação e regras compartilhadas. As rotas estão implementadas; as etapas abaixo organizam manutenção e revisão, sem indicar novas funcionalidades pendentes. Evidências e limites estão em [AUTH_LAB.md](AUTH_LAB.md#escopo-implementado-e-limites).
 
-## Etapa 1 - Preparar a base
+**Código de referência:** `core/`, `routers/auth.py`, `routers/users.py`, `routers/access_requests.py`, `routers/admin.py` e `seed/`.
 
-- Conferir o código e as migrations existentes antes de reorganizar ou adicionar tabelas. O desenho em DATABASE.md ainda precisa ser comparado com o banco real.
+Esta área mantém a infraestrutura da aplicação, contas, autenticação e operações compartilhadas. Amanda e João ficam como referências de responsabilidade pelas rotas científicas; mudanças na base devem preservar seus contratos e testes conectados.
+
+## Área 1 - Preparar a base
+
+- Conferir o código e as migrations existentes antes de reorganizar ou adicionar tabelas. Conferir histórico aplicado e compatibilidade com DATABASE.md em cada instalação.
 - Preparar a entrada da API, configuração, conexão com PostgreSQL e aplicação das migrations sem apagar dados.
 - Definir o padrão de rota, validação de entrada, regra de negócio, consulta ao banco, resposta e erro. Manter SQL parametrizado.
 - Preparar dados fictícios de desenvolvimento: administrador, N1/N2 de duas equipes e N3.
 - Entregar uma consulta pequena de ponta a ponta como exemplo, com um teste de acesso permitido e outro negado.
 
-**Concluir quando:** a API inicia, o banco mantém os dados após reinício e Amanda/João conseguem reproduzir o exemplo.
+**Critérios de revisão:** a API inicia, o banco mantém os dados após reinício e Amanda/João conseguem reproduzir o exemplo.
 
-Leia primeiro [Como funciona o sistema](BUSINESS_RULES.md). Consulte o contrato de cada rota em [ENDPOINTS.md](ENDPOINTS.md), as tabelas em [DATABASE.md](DATABASE.md) e o [exemplo completo](USE_CASES.md). Estes arquivos distribuem trabalho planejado; não afirmam que os endpoints já existem.
+Leia primeiro [Como funciona o sistema](BUSINESS_RULES.md). Consulte o contrato de cada rota em [ENDPOINTS.md](ENDPOINTS.md), as tabelas em [DATABASE.md](DATABASE.md) e o [exemplo completo](USE_CASES.md). As tabelas abaixo vinculam cada operação ao contrato e aos schemas correspondentes.
 
 Todos os endereços abaixo começam com `/api/v1`, exceto o health check `/health`. `{id}` e `{user_id}` representam identificadores do registro. `GET` consulta, `POST` cria ou executa uma ação, `PATCH` altera campos e `DELETE` remove o vínculo indicado.
 
-## Etapa 2 - Consultas de apoio
+## Área 2 - Consultas de apoio
 
 | Endpoint | Para que serve | Schemas de entrada → saída |
 | --- | --- | --- |
@@ -26,9 +30,9 @@ Todos os endereços abaixo começam com `/api/v1`, exceto o health check `/healt
 | [GET /admin/permissions](ENDPOINTS.md#get-adminpermissions) | Consultar as ações conhecidas pelo sistema. | Sem corpo JSON → `list` de [PermissionResponse](../facial_recognition/schemas/permissions.py#L8) (catálogo sem paginação). |
 | [GET /admin/audit-events](ENDPOINTS.md#get-adminaudit-events) | Consultar eventos administrativos sem expor análises ou dados secretos. | [AuditEventQuery](../facial_recognition/schemas/audit_events.py#L37) → [ListResponse](../facial_recognition/schemas/base_model.py#L91) de [AuditEventResponse](../facial_recognition/schemas/audit_events.py#L12) |
 
-**Concluir quando:** Consultas retornam apenas os campos permitidos; catálogos administrativos não podem ser lidos por N1/N2/N3.
+**Critérios de revisão:** Consultas retornam apenas os campos permitidos; catálogos administrativos não podem ser lidos por N1/N2/N3.
 
-## Etapa 3 - Contas e solicitações
+## Área 3 - Contas e solicitações
 
 | Endpoint | Para que serve | Schemas de entrada → saída |
 | --- | --- | --- |
@@ -45,9 +49,9 @@ Todos os endereços abaixo começam com `/api/v1`, exceto o health check `/healt
 | [POST /users/{id}/activation/revalidate](ENDPOINTS.md#post-usersidactivationrevalidate) | Renovar a validade da mesma senha temporária. | Sem corpo JSON → [UserActivationResponse](../facial_recognition/schemas/users.py#L73) |
 | [POST /users/{id}/recovery](ENDPOINTS.md#post-usersidrecovery) | Autorizar recuperação de senha, cadastro facial ou ambos. | [UserRecovery](../facial_recognition/schemas/users.py#L157) → [UserActivationResponse](../facial_recognition/schemas/users.py#L73) |
 
-**Concluir quando:** Pedidos seguem o nível/equipe permitido; email não duplica; aprovação reserva as vagas N2/N3; desativação usa soft_delete e revoga acesso; reativação preserva activated_at da primeira ativação e exige nova senha/face. Consultas e autorização ignoram registros e vínculos excluídos; ações geram log sanitizado em audit_events.
+**Critérios de revisão:** Pedidos seguem o nível/equipe permitido; email não duplica; aprovação reserva as vagas N2/N3; desativação usa soft_delete e revoga acesso; reativação preserva activated_at da primeira ativação e exige nova senha/face. Consultas e autorização ignoram registros e vínculos excluídos; ações geram log sanitizado em audit_events.
 
-## Etapa 4 - Entrada e segurança compartilhada
+## Área 4 - Entrada e segurança compartilhada
 
 | Endpoint | Para que serve | Schemas de entrada → saída |
 | --- | --- | --- |
@@ -63,27 +67,29 @@ Todos os endereços abaixo começam com `/api/v1`, exceto o health check `/healt
 | [POST /auth/password-change/start](ENDPOINTS.md#post-authpassword-changestart-e-post-authpassword-changecomplete) | Iniciar troca de senha confirmando a senha atual. | [PasswordChangeStartRequest](../facial_recognition/schemas/password_hashes.py#L44) → [AuthenticationStepResponse](../facial_recognition/schemas/authentication_attempts.py#L13) |
 | [POST /auth/password-change/complete](ENDPOINTS.md#post-authpassword-changestart-e-post-authpassword-changecomplete) | Concluir troca de senha e encerrar todas as sessões. | [PasswordCompleteRequest](../facial_recognition/schemas/password_hashes.py#L11) → [LoginRequiredResponse](../facial_recognition/schemas/sessions.py#L45) |
 
-**Concluir quando:** Etapa incompleta não acessa o laboratório; sessão revogada não funciona; permissões, cookies e proteção das alterações são verificados no servidor.
+**Critérios de revisão:** Etapa incompleta não acessa o laboratório; sessão revogada não funciona; permissões, cookies e proteção das alterações são verificados no servidor.
 
-## Etapa 5 - Preparar as operações delicadas para os colegas
+Regressões de concorrência cobrem refresh contra revogação nas duas ordens, replay simultâneo e troca de senha contra login/logout. Sessão é bloqueada antes de refresh; token localizado sem lock é revalidado. Login/logout serializam as contas por UUID com `FOR NO KEY UPDATE`, permitindo as FKs de autoria da auditoria. Comparação e hash de senha executam em thread, mantendo a revalidação transacional. Resultados da rodada atual estão em [AUTH_LAB.md](AUTH_LAB.md#validação-da-implementação--04112026).
 
-Entregar funções de regra de negócio que as rotas de Amanda e João possam chamar. Essas funções verificam acesso e situação atual e gravam todas as mudanças necessárias juntas, sem deixar metade da operação salva.
+## Área 5 - Preparar as operações delicadas para os colegas
+
+Manter funções compartilhadas de regra de negócio usadas pelas rotas de Amanda e João. Elas conferem acesso e situação atual; o chamador mantém a transação para gravar negócio e auditoria atomicamente.
 
 - **Para Amanda:** cadastro com primeira investigação, nova investigação com atendimento de pedido N3, envio com cópia preservada da entrega, alteração de participantes/responsável e ativação/inativação da amostra.
 - **Para João:** devolução/encerramento, envio selado ao N3, publicação, sigilo, pedido de nova investigação e retirada de notícia.
 - **Para ambos:** consulta com acesso limitado por pessoa/equipe, paginação, erros e registro de eventos sem dados secretos.
 
-**Concluir quando:** testes em PostgreSQL real comprovam uma investigação em andamento por amostra, entregas preservadas e decisões incompatíveis impedidas, inclusive com duas chamadas simultâneas. Amanda e João sabem quais funções chamar e quais dados passar.
+**Critérios de revisão:** testes em PostgreSQL real comprovam uma investigação em andamento por amostra, entregas preservadas e decisões incompatíveis impedidas, inclusive com duas chamadas simultâneas. Chamadores, docstrings e contratos identificam os dados e as pré-condições de cada função.
 
-## Etapa 6 - Revisar a integração
+## Área 6 - Revisar a integração
 
 Revisar os endpoints dos colegas, integrar o caminho completo do cadastro à divulgação e testar acessos indevidos entre equipes. Testar autenticação com o simulador e depois com a integração biométrica real; registrar esses resultados separadamente. O simulador não comprova reconhecimento facial.
 
-Você apoia e revisa; Amanda e João continuam responsáveis pelos endpoints atribuídos a eles.
+A revisão da base acompanha os endpoints científicos sem duplicar sua organização por responsabilidade.
 
-## Como entregar cada etapa
+## Como revisar uma alteração
 
 - Seguir os campos, respostas, limites e complementos da rota em ENDPOINTS.md. Os exemplos deste plano não substituem o contrato.
 - Executar testes de sucesso, dados inválidos, acesso negado e situação incompatível quando aplicável.
 - Conferir gravações e consultas no PostgreSQL real; simulações não comprovam as garantias do banco.
-- Revisar com Luiz antes de avançar para operações que dependem dessa etapa. Registrar o que foi testado e o que ainda falta.
+- Revisar com Luiz antes de avançar para operações que dependem dessa etapa. Registrar evidências executadas e limitações restantes.

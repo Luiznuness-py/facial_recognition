@@ -1,8 +1,8 @@
-# Como funciona o sistema
+# Regras de negócio do laboratório
 
 O projeto é um sistema acadêmico para um laboratório fictício de biossegurança ambiental. Ele controla o acesso das pessoas e acompanha a investigação de amostras com agentes biológicos ainda não identificados, até a decisão sobre divulgar os resultados.
 
-**Este documento descreve o funcionamento planejado.** As funcionalidades ainda precisam ser implementadas e testadas. Os [endpoints](ENDPOINTS.md), o [banco de dados](DATABASE.md) e o [exemplo completo](USE_CASES.md) são referências para quem precisar de mais detalhes.
+**Referência de negócio do sistema implementado.** A organização dos componentes está em [SYSTEM.md](SYSTEM.md). O estado dos testes e seus limites estão em [AUTH_LAB.md](AUTH_LAB.md#escopo-implementado-e-limites). Os [endpoints](ENDPOINTS.md), o [banco de dados](DATABASE.md) e o [exemplo completo](USE_CASES.md) são referências para quem precisar de mais detalhes.
 
 ## 1. Quem participa
 
@@ -62,6 +62,8 @@ Ao enviar ao N3, a análise, o relatório e a notícia ficam preservados no cofr
 | Solicitar outra investigação | A investigação atual termina, preservando o relatório. O N2 recebe o motivo e abre outra investigação da mesma amostra, escolhendo um responsável. A nova equipe também recebe esse motivo, sem acesso ao cofre anterior. |
 
 O N3 não corrige nem devolve o relatório ou a notícia para edição nesta versão. Cada relatório recebe uma decisão final. Um pedido de nova investigação aguarda o N2 da equipe, inclusive se for necessário substituir esse supervisor; a próxima investigação deve atender ao pedido. Não há opção de rejeitar ou cancelar esse pedido nesta versão.
+
+Os pedidos podem se repetir por várias gerações. A investigação recebe o motivo do pedido que a originou; o acompanhamento de cada envio mostra o pedido emitido por aquele dossiê, com seu próprio motivo e vínculo de atendimento. Atender um pedido anterior não atende automaticamente um pedido posterior.
 
 ### Divulgação ao público
 

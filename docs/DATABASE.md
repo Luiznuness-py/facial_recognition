@@ -1,6 +1,6 @@
-# Banco de dados alvo - consolidação documental
+# Banco de dados: estrutura e invariantes
 
-Este arquivo mostra as tabelas e campos que vamos usar. O funcionamento está em [BUSINESS_RULES.md](BUSINESS_RULES.md) e os contratos das rotas em [ENDPOINTS.md](ENDPOINTS.md), e o exemplo completo em [USE_CASES.md](USE_CASES.md). A [migration inicial](../facial_recognition/migrations/001_initial_schema.sql) agora define essa estrutura para bancos novos. Isso não comprova que o banco do projeto já foi atualizado ou que os serviços foram implementados.
+Este documento descreve as tabelas, os campos e os invariantes usados pela aplicação. O funcionamento está em [BUSINESS_RULES.md](BUSINESS_RULES.md) e os contratos das rotas em [ENDPOINTS.md](ENDPOINTS.md), e o exemplo completo em [USE_CASES.md](USE_CASES.md). A [migration inicial](../facial_recognition/migrations/001_initial_schema.sql) define essa estrutura para bancos novos. As rotas e regras compartilhadas usam essa estrutura, sem nova migration nesta implementação. Os testes usam PostgreSQL real e schemas isolados; isso não substitui conferir o histórico de migrations de outra instalação.
 
 Nesta fase inicial, a estrutura fica concentrada na migration 001. Editá-la não modifica um banco onde ela já está registrada; a recriação de um banco de desenvolvimento depende de decisão explícita, pois apaga os dados existentes. A 001 inclui estados, limites, chaves, índices e proteção do conteúdo histórico; permissões, reserva de N2/N3, bloqueios transacionais e regras entre tabelas continuam sendo responsabilidade da implementação dos serviços. Qualquer verificação SQL deve ser executada somente em banco isolado com a 001 aplicada. O arquivo anterior de testes SQL não está presente neste checkout.
 
@@ -38,7 +38,7 @@ Os campos de autoria dessas tabelas permitem `NULL` para cadastrar os níveis e 
 
 ## Convenções
 
-IDs UUID; instantes TIMESTAMPTZ; data de coleta DATE; flags BOOLEAN; hashes/textos TEXT; conteúdo criptografado BYTEA. Percentuais NUMERIC(5,2), entre 0 e 100, escolha desta consolidação. Limites de caracteres são validados no frontend/backend e protegidos no banco, sem truncamento automático. Datas de criação/alteração são geradas pelo sistema. As 18 tabelas da aplicação têm `soft_delete BOOLEAN NOT NULL DEFAULT FALSE`; a tabela técnica `schema_migrations` não é um registro removível da aplicação. Nenhuma operação do produto faz exclusão física ou exclusão em cascata.
+IDs UUID; instantes TIMESTAMPTZ; data de coleta DATE; flags BOOLEAN; hashes/textos TEXT; conteúdo criptografado BYTEA. Percentuais NUMERIC(5,2), entre 0 e 100. Limites de caracteres são validados no frontend/backend e protegidos no banco, sem truncamento automático. Datas de criação/alteração são geradas pelo sistema. As 18 tabelas da aplicação têm `soft_delete BOOLEAN NOT NULL DEFAULT FALSE`; a tabela técnica `schema_migrations` não é um registro removível da aplicação. Nenhuma operação do produto faz exclusão física ou exclusão em cascata.
 
 ## Exclusão lógica, ativação e log de ações
 
@@ -62,10 +62,10 @@ A operação de escrita bem-sucedida e seu evento são gravados na mesma transa�
 | `permissions` | `id, code, description, created_at, created_by, updated_at, updated_by` | Uma ação identificada por código único. |
 | `role_permissions` | `role_id, permission_id, created_at, created_by, updated_at, updated_by` | PK composta; associação muitos para muitos. |
 | `teams` | `id, code, name, description, created_at, created_by, updated_at, updated_by` | Grupo administrativo, não classificação científica. Código único. |
-| `users` | `id, name, email, role_id, team_id, status, biometric_enrollment_required, password_change_required, activated_at, created_at, created_by, updated_at, updated_by`; controles escolhidos `biometric_failure_count, biometric_failure_window_started_at, biometric_blocked_until` | Email normalizado único, inclusive desativados; N1/N2 têm grupo. Um N2 habilitado por grupo e um N3, incluindo reserva na ativação. |
+| `users` | `id, name, email, role_id, team_id, status, biometric_enrollment_required, password_change_required, activated_at, created_at, created_by, updated_at, updated_by`; controles `biometric_failure_count, biometric_failure_window_started_at, biometric_blocked_until` | Email normalizado único, inclusive desativados; N1/N2 têm grupo. Um N2 habilitado por grupo e um N3, incluindo reserva na ativação. |
 | `access_requests` | `id, user_id?, requested_name, requested_email, temporary_password_hash?, requested_by, requested_role_id, requested_team_id?, status, created_at, updated_at, updated_by, decided_by?, decided_at?, rejection_reason?` | Conta só nasce na aprovação; hash somente enquanto pendente. Rejeição encerra o pedido. |
 | `password_hashes` | `user_id, password_hash, is_temporary, temporary_expires_at?, created_at, created_by, updated_at, updated_by` | Uma credencial atual por usuário; PK/FK user_id; Argon2id. |
-| `vectors` | `id, user_id, ciphertext, nonce, key_version, model_version, created_at` | Embedding AES-GCM; chave fora do banco; dimensão/serialização ainda dependem dos modelos. |
+| `vectors` | `id, user_id, ciphertext, nonce, key_version, model_version, created_at` | Embedding SFace de 128 valores float32, criptografado com AES-GCM; chave fora do banco e versão de modelo registrada. |
 | `authentication_attempts` | `id, user_id, status, stage, token_jti, biometric_failures, created_at, expires_at, completed_at?`; campos adicionais `operation, initiating_session_id?` | Guarda autorização da etapa, não o JWT completo; expiração de cinco minutos por token emitido. |
 | `sessions` | `id, user_id, created_at, expires_at, revoked_at?` | Prazo absoluto de 24 horas. |
 | `refresh_tokens` | `id, session_id, token_hash, created_at, expires_at, used_at?, revoked_at?, replaced_by_id?` | Token aleatório, só hash persistido; rotação atômica, reutilização revoga sessão. |
@@ -127,14 +127,14 @@ Conteúdo científico e participantes são copiados no envio e preservados. `par
 | --- | --- |
 | `id, validation_id, source_submission_id, protocol` | Validação única, entrega usada, protocolo único. |
 | `sent_by, sent_at, received_snapshot` | Autoria, data e cópia da análise/equipe recebida; JSONB. |
-| `title, final_conclusion, final_risk_percentage` | Relatório interno completo; todos obrigatórios. Título 120/conclusão 5.000 são os limites escolhidos para revisão. |
+| `title, final_conclusion, final_risk_percentage` | Relatório interno completo; todos obrigatórios. Limites: título de 120 e conclusão de 5.000 caracteres. |
 | `public_title, public_subtitle?, public_risk_category, public_body` | Ficha junto do relatório: 120, 200 opcional, LOW/MODERATE/HIGH, corpo 5.000. |
 | `decision_status, decided_by?, decided_at?, restricted_reason?` | Decisão separada do conteúdo original; sigilo com motivo até 1.500 somente N3. Estados: WAITING_N3, PUBLISHED, RESTRICTED, NEW_VALIDATION_REQUESTED. |
 | `new_validation_requested_by?, new_validation_requested_at?, new_validation_request_reason?, request_fulfilled_by_validation_id?` | Proposta de guardar o pedido N3 sem tabela adicional; motivo até 1.500 e vínculo à tarefa que o atendeu. |
 
 Conteúdo selado não é editado; apenas metadados de decisão/pedido evoluem. Só N3 lê conteúdo completo. N2 consulta título, agente, protocolo e situação por projeção específica; não recebe conclusão, percentual, ficha ou snapshot.
 
-Pedido N3 encerra a anterior, preserva o dossiê e libera nova tarefa. N2 recebe pedido/motivo e atribui a próxima; nova equipe vê esse motivo sem acesso ao cofre. Guardar pedido e atendimento nessas colunas é a escolha de persistência desta consolidação, para sua revisão. Pedido não atendido tem vínculo de atendimento nulo; preenchê-lo na criação da nova tarefa, impedindo atendimento duplicado ou vínculo a tarefa incompatível. Motivo de sigilo não deve ser copiado para `validations.closure_reason`.
+Pedido N3 encerra a anterior, preserva o dossiê e libera nova tarefa. N2 recebe pedido/motivo e atribui a próxima; nova equipe vê esse motivo sem acesso ao cofre. As colunas preservam pedido e atendimento sem sobrescrever o relatório original. Pedido não atendido tem vínculo de atendimento nulo; preenchê-lo na criação da nova tarefa, impedindo atendimento duplicado ou vínculo a tarefa incompatível. Motivo de sigilo não deve ser copiado para `validations.closure_reason`.
 
 ### 6. `publications` - cópia pública aprovada
 
@@ -200,12 +200,12 @@ O símbolo `?` nas listas significa que o campo pode ficar vazio. Campos de rasc
 
 Campos de risco são NUMERIC(5,2), nunca float para persistir. Timestamps de expiração/uso/revogação são verificações do servidor, sem confiar em datas do navegador. UUIDs/FKs obrigatórios para agente/grupo/responsável; não inferir que o criador permanece responsável para sempre.
 
-Snapshot de entrega: lista de `{user_id,name,role_code}` do responsável e dos colaboradores, mais ID/nome do remetente e os quatro textos/risco. O snapshot do dossiê incorpora a entrega usada, identificação cadastral da amostra e conclusão/ficha recebidas. Não guardar credenciais. JSONB é usado SOMENTE nessas cópias históricas; dados editáveis e vínculos continuam em colunas/FKs. Decisão e motivo pertencem a metadados fora do snapshot imutável.
+Cada entrega guarda textos/risco, UUIDs do responsável/remetente e participants_snapshot: lista de `{user_id,name,role_code}` da equipe naquele instante. O received_snapshot do dossiê contém `{agent,team,submission}` com cadastro, equipe e entrega usada; conclusão e ficha permanecem nas colunas seladas de vault. Credenciais não entram nessas cópias. Dados editáveis e vínculos continuam em colunas/FKs; decisão e motivos são metadados fora do JSONB imutável.
 
 | Garantia | Como proteger |
 | --- | --- |
-| Email único | UNIQUE users.email normalizado; UNIQUE parcial pedido pendente e não excluído por requested_email; bloqueio transacional por email em todos os fluxos que disputam conta/pedido. |
-| Uma vaga N2/N3 | Bloquear grupo para N2 e posição global para N3; conferir papel/reserva em users não excluídos antes de aprovar, reativar ou promover. Constraint envolvendo roles precisa migração específica ou trigger; não presumir que índice parcial com JOIN existe. |
+| Email único | UNIQUE users.email normalizado e UNIQUE parcial de requested_email pendente não excluído; os fluxos de cadastro usam advisory lock compartilhado e verificam conflitos entre conta e pedido na transação. |
+| Uma vaga N2/N3 | Advisory lock transacional de cadastros; conferir papel, equipe e reserva em users não excluídos antes de aprovar, reativar ou promover. A unicidade de posição por papel/equipe depende da aplicação; não há índice parcial com JOIN para essa regra. |
 | Uma tarefa ativa por agente | Índice UNIQUE parcial em validations(agent_id) para OPEN/IN_REVIEW/RETURNED/REPORTED com soft_delete = FALSE, mais bloqueio do agente em criação/envio/decisão/inativação. |
 | Um dossiê/publicação | UNIQUE vault.validation_id, vault.source_submission_id, vault.protocol e publications.vault_id. |
 | Participação sem duplicata | PK validation_participants(validation_id,user_id); responsável não precisa vínculo de colaborador paralelo. Troca exclui logicamente o vínculo leitor do novo responsável e inclui/restaura o anterior sem duplicar. |
@@ -228,30 +228,38 @@ Dimensão/serialização dos embeddings, versão compatível, quantidade e inter
 
 ## Schemas das rotas
 
-Os schemas são contratos de entrada e projeções de saída, não cópias completas das tabelas. A seleção de campos evita expor credenciais e conteúdo reservado. Consulte [cada endpoint e seus schemas](ENDPOINTS.md) e a base em [sc_base_model.py](../facial_recognition/schemas/base_model.py).
+Os schemas são contratos de entrada e projeções de saída, não cópias completas das tabelas. A seleção de campos evita expor credenciais e conteúdo reservado. Consulte [cada endpoint e seus schemas](ENDPOINTS.md) e a base em [base_model.py](../facial_recognition/schemas/base_model.py).
 
 | Tabela | Arquivo de schemas |
 | --- | --- |
-| `access_requests` | [sc_access_requests.py](../facial_recognition/schemas/access_requests.py) |
-| `audit_events` | [sc_audit_events.py](../facial_recognition/schemas/audit_events.py) |
-| `authentication_attempts` | [sc_authentication_attempts.py](../facial_recognition/schemas/authentication_attempts.py) |
-| `biological_agents` | [sc_biological_agents.py](../facial_recognition/schemas/biological_agents.py) |
-| `investigation_submissions` | [sc_investigation_submissions.py](../facial_recognition/schemas/investigation_submissions.py) |
-| `password_hashes` | [sc_password_hashes.py](../facial_recognition/schemas/password_hashes.py) |
-| `permissions` | [sc_permissions.py](../facial_recognition/schemas/permissions.py) |
-| `publications` | [sc_publications.py](../facial_recognition/schemas/publications.py) |
-| `refresh_tokens` | [sc_refresh_tokens.py](../facial_recognition/schemas/refresh_tokens.py) |
-| `role_permissions` | [sc_role_permissions.py](../facial_recognition/schemas/role_permissions.py) |
-| `roles` | [sc_roles.py](../facial_recognition/schemas/roles.py) |
-| `sessions` | [sc_sessions.py](../facial_recognition/schemas/sessions.py) |
-| `teams` | [sc_teams.py](../facial_recognition/schemas/teams.py) |
-| `users` | [sc_users.py](../facial_recognition/schemas/users.py) |
-| `validation_participants` | [sc_validation_participants.py](../facial_recognition/schemas/validation_participants.py) |
-| `validations` | [sc_validations.py](../facial_recognition/schemas/validations.py) |
-| `vault` | [sc_vault.py](../facial_recognition/schemas/vault.py) |
+| `access_requests` | [access_requests.py](../facial_recognition/schemas/access_requests.py) |
+| `audit_events` | [audit_events.py](../facial_recognition/schemas/audit_events.py) |
+| `authentication_attempts` | [authentication_attempts.py](../facial_recognition/schemas/authentication_attempts.py) |
+| `biological_agents` | [biological_agents.py](../facial_recognition/schemas/biological_agents.py) |
+| `investigation_submissions` | [investigation_submissions.py](../facial_recognition/schemas/investigation_submissions.py) |
+| `password_hashes` | [password_hashes.py](../facial_recognition/schemas/password_hashes.py) |
+| `permissions` | [permissions.py](../facial_recognition/schemas/permissions.py) |
+| `publications` | [publications.py](../facial_recognition/schemas/publications.py) |
+| `refresh_tokens` | [refresh_tokens.py](../facial_recognition/schemas/refresh_tokens.py) |
+| `role_permissions` | [role_permissions.py](../facial_recognition/schemas/role_permissions.py) |
+| `roles` | [roles.py](../facial_recognition/schemas/roles.py) |
+| `sessions` | [sessions.py](../facial_recognition/schemas/sessions.py) |
+| `teams` | [teams.py](../facial_recognition/schemas/teams.py) |
+| `users` | [users.py](../facial_recognition/schemas/users.py) |
+| `validation_participants` | [validation_participants.py](../facial_recognition/schemas/validation_participants.py) |
+| `validations` | [validations.py](../facial_recognition/schemas/validations.py) |
+| `vault` | [vault.py](../facial_recognition/schemas/vault.py) |
 
 `vectors` não possui corpo JSON próprio: as rotas biométricas recebem imagens por multipart. Vetores e hashes nunca são respostas públicas. `role_permissions` e `investigation_submissions` fornecem estruturas auxiliares; isso não cria endpoints CRUD.
 
 ## Projeção de edição cadastral
 
 `can_edit` em BiologicalAgentResponse é calculado pelo serviço para a resposta, não é coluna persistida. Considera autorização do ator e todas as entregas da amostra, inclusive histórico preservado, sem paginação ou filtro de estado. A existência da flag não dispensa a conferência transacional no PATCH.
+
+A listagem calcula essa flag com `NOT EXISTS` na consulta da página, sem filtrar `soft_delete` em entregas ou investigações históricas. O PATCH consulta novamente o histórico depois do lock da amostra para impedir edição concorrente com o primeiro envio.
+
+## Bloqueios e pedidos sucessivos
+
+Refresh e revogação bloqueiam `sessions` antes de `refresh_tokens`. A localização inicial do hash não concede uso: o refresh relê o token sob lock, verificando uso, revogação, exclusão e expiração. Login/logout serializam as contas envolvidas por UUID, usando `FOR NO KEY UPDATE` para permitir as FKs de autoria. A seleção de candidatos usa `FOR SHARE`: impede mudança da conta até o fim da operação sem bloquear referências ao autor em compartilhamentos simultâneos.
+
+`vault.validation_id` identifica a investigação que emitiu o pedido; `request_fulfilled_by_validation_id` identifica a investigação que o atendeu. Esta pode gerar outro dossiê e outro pedido. Cards de envios projetam o pedido do próprio `vault`; detalhes e cards de investigação consultam o pedido que a originou. Nenhuma alteração de estrutura ou migration foi necessária.

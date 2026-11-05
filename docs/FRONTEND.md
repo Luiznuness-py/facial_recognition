@@ -30,9 +30,9 @@ As rotas das telas usam fragmentos de URL (`#/amostras`, por exemplo), sem preci
 
 Os conteúdos recebidos são criados como texto, sem interpolação em HTML. Os menus orientam a navegação por `auth/me.permissions`; a API continua responsável por autorizar cada ação e filtrar recursos/campos. ADMIN não ganha conteúdo científico; N3 não ganha a área de edição do N1/N2.
 
-## Telas e chamadas preparadas
+## Telas e contratos HTTP
 
-Todos os caminhos abaixo têm prefixo `/api/v1`. A presença de uma chamada no frontend **não significa que o backend a implementa**.
+Todos os caminhos abaixo têm prefixo `/api/v1` e estão registrados no backend atual. A presença de uma chamada e de sua rota não comprova a integração visual; o roteiro manual e as limitações de validação estão ao final deste documento.
 
 | Fluxo | Chamadas |
 | --- | --- |
@@ -56,13 +56,11 @@ A lista de revisões começa pela seleção da amostra e consulta as investigaç
 
 Os participantes são lidos da projeção da investigação, que já os inclui; não é necessário chamar o catálogo de participantes novamente. Catálogos de papéis/permissões administrativos não receberam páginas de edição, pois não há esse fluxo no MVP.
 
-### O que existe no backend inspecionado
+### Backend disponível
 
-- Login, CSRF, consulta de etapa, cadastro/reconhecimento facial, definição de senha, `auth/me`, refresh e logout.
-- `GET /teams/` e `GET /users/`, incluindo filtros e paginação das contas.
-- `POST /access-requests`, atualmente **somente criação direta pelo ADMIN**. A existência desse endereço não comprova solicitações pendentes por N2/N3; a tela informa a dependência e mantém o erro real da API.
+As chamadas da tabela acima estão implementadas: autenticação e troca voluntária de senha, equipes, administração completa de contas/pedidos, auditoria administrativa, amostras e investigações, participantes, revisão, envios, cofre e publicações. `GET /validations/{id}/participants` também está disponível para clientes que precisem do catálogo separado.
 
-As outras chamadas da tabela estão preparadas conforme os contratos, mas não têm implementação no checkout inspecionado. A troca voluntária de senha também depende de backend.
+Os contratos HTTP são exercitados com PostgreSQL real e a lista de operações documentadas é conferida contra `/openapi.json`. A validação visual com este backend ainda precisa ser feita: o controle de navegador da sessão está desativado. Os registros históricos de interface com API fictícia abaixo não comprovam esta integração real.
 
 ### Como a interface identifica pendências
 
@@ -78,7 +76,7 @@ Se o OpenAPI estiver indisponível, a interface tenta a chamada normal e exibe o
 - Com `BIOMETRICS_MODE=real`, cadastro e reconhecimento usam câmera real. A captura para ao ocultar/sair da página, trocar de tela, cancelar ou concluir. A imagem apresentada é espelhada, mas a enviada mantém a orientação e proporção originais.
 - Com `BIOMETRICS_MODE=simulated` em development/test, a etapa mostra “Biometria simulada” e permite continuar sem câmera. O backend informa o modo em auth/flow e autoriza o POST protegido `/auth/biometric/simulate`; a UI não escolhe o modo nem envia imagens fictícias. Senha definitiva e autorização continuam obrigatórias. Produção recusa simulação.
 - O rascunho permite textos incompletos. “Salvar e enviar ao N2” exige os quatro textos, salva primeiro e só então envia. Se o envio falhar após salvar, a mensagem distingue as duas operações.
-- A edição cadastral só aparece se `BiologicalAgentResponse.can_edit` for true para o ator. O backend deve considerar todas as entregas, sem depender de página/filtro, e revalidar a regra ao salvar.
+- A edição cadastral só aparece se `BiologicalAgentResponse.can_edit` for true para o ator. O backend considera todas as entregas, inclusive histórico excluído, sem depender de página/filtro, e revalida a regra sob lock ao salvar.
 - A troca de responsável preserva o anterior como colaborador conforme o backend. Colaboradores recebem leitura; o frontend não oferece edição ou envio para eles.
 - O envio N2 mostra relatório interno e ficha pública em seções distintas, com prévia. A confirmação avisa sobre o selamento; após sucesso os campos são limpos e a tela muda para acompanhamento.
 - Categoria pública é escolhida pelo N2, sem conversão automática do percentual de risco.
@@ -89,11 +87,11 @@ Se o OpenAPI estiver indisponível, a interface tenta a chamada normal e exibe o
 
 ## Roteiro manual por fluxo
 
-Usar somente contas e registros de teste autorizados. As funções futuras devem ser verificadas conforme os respectivos endpoints forem implementados. Uma mensagem de pendência é o resultado esperado enquanto a rota não existir.
+Usar somente contas e registros de teste autorizados. As rotas estão implementadas; executar o roteiro abaixo para verificar a integração visual. Uma mensagem de pendência só é esperada quando a API em execução usa uma versão sem a rota.
 
 ### Público
 
-1. Abrir `/lab#/noticias` sem sessão. Conferir notícia pendente ou lista real, sem relatório, equipe, percentual interno ou local exato.
+1. Abrir `/lab#/noticias` sem sessão. Conferir lista real, inclusive vazia, sem relatório, equipe, percentual interno ou local exato.
 2. Pesquisar e paginar; recarregar e conferir os filtros na URL.
 3. Abrir detalhe; verificar parágrafos longos e voltar à lista. Notícia retirada deve retornar 404 e sumir da lista.
 4. Conferir logo, links ICMBio/MMA e identificação acadêmica no rodapé.
@@ -133,8 +131,8 @@ Usar somente contas e registros de teste autorizados. As funções futuras devem
 3. Em preparação/devolução, incluir/remover colaborador e trocar responsável. Conferir que o anterior passa a leitor.
 4. Abrir nova investigação com responsável elegível, amostra ativa e sem outra investigação em andamento. Conferir conflitos reais do backend.
 5. Preparar relatório e ficha, conferir prévia e enviar. Conferir confirmação de selamento e que o acompanhamento não recebe/reabre conteúdo selado.
-6. Atender pedido N3 usando o botão em Enviadas ao N3; conferir envio de `request_vault_id`, motivo e vínculo com a nova tarefa.
-7. Solicitar conta N1: enviar somente nome, email e temporária; papel/equipe são determinados pelo servidor. No backend atual, esse fluxo ainda não está disponível.
+6. Atender pedido N3 usando o botão em Enviadas ao N3; conferir envio de `request_vault_id`, motivo e vínculo com a nova tarefa. Repetir com um segundo pedido: o card mostra o novo pedido pendente, enquanto a investigação mantém o motivo que a originou.
+7. Solicitar conta N1: enviar somente nome, email e temporária; papel/equipe são determinados pelo servidor. Acompanhar a aprovação ou rejeição pelo ADMIN.
 
 ### N3
 
@@ -152,7 +150,9 @@ Usar somente contas e registros de teste autorizados. As funções futuras devem
 4. Simular 403, 404, 409, 422, 429, 503 e desconexão; conferir mensagem, campos preservados e ausência de sucesso fictício.
 5. Clicar duas vezes ao enviar uma ação; conferir uma única mutação. Não trocar de tela enquanto a ação estiver em andamento.
 
-## Evidências desta implementação
+## Histórico da implementação visual anterior
+
+Os resultados desta seção se referem à etapa visual anterior à implementação atual do backend.
 
 - Sintaxe dos sete módulos JavaScript conferida com Node.
 - Smoke estático de `/lab`, sete módulos, CSS, dois PNGs e cabeçalhos; 41 testes passaram no conjunto `tests/test_frontend.py` + `tests/test_cookie_transport.py`.
@@ -161,35 +161,24 @@ Usar somente contas e registros de teste autorizados. As funções futuras devem
 - Artefatos de revisão ficam em `work/frontend-review/`; capturas com dados fictícios são identificadas como prévia de teste. Não são dados científicos reais e não há modo demonstrativo embutido na aplicação.
 - Nenhum commit, push ou deploy. Banco, modelos, autorização e regras científicas do backend não foram implementados ou alterados nesta etapa.
 
-## Pendências
+## Pendências atuais de validação
 
-- PostgreSQL disponível para repetir integração real e testar com contas autorizadas.
-- Implementação das rotas futuras pelos responsáveis, conforme BUSINESS_RULES.md e ENDPOINTS.md.
-- Validar o percurso completo do modo simulado com PostgreSQL e contas fictícias; o recurso já está implementado no backend e frontend.
+- Repetir o roteiro visual com o backend real; nesta sessão o controle de navegador está desativado. PostgreSQL e testes HTTP estão disponíveis.
+- Validar no navegador o percurso completo do modo simulado com as contas fictícias; os fluxos HTTP já têm testes com PostgreSQL.
 - Webcam física, calibração biométrica, leitor de tela, dispositivos móveis físicos e HTTPS remoto ainda não validados.
 - Sem painel de métricas inventadas, mapa epidemiológico, prontuário animal ou cadastro público: não fazem parte dos contratos atuais.
 
-### Reformulação visual
+### Identidade visual
 
-A primeira versão foi rejeitada na avaliação visual: tipografia genérica, pouca separação entre navegação e conteúdo, predominância de fundos esverdeados e ausência de uma composição própria para o portal e para o acesso. A segunda versão refaz essa direção, preservando os formulários, contratos e autenticação presentes no checkout, inclusive o modo de biometria já existente.
+O portal usa composição editorial com fotografia ilustrativa de fauna. O acesso tem apresentação e formulário separados; a área institucional usa navegação lateral, tabelas e formulários. A tipografia Manrope é servida localmente, com suporte a movimento reduzido e foco visível.
 
-- **Portal:** direção `editorial-report` da skill design-taste-frontend, com fotografia de fauna em destaque, título editorial, pesquisa de publicações e apresentação do projeto.
-- **Acesso:** composição dividida, com imagem e texto sobre verde profundo à esquerda e formulário claro à direita. No celular, a apresentação fica compacta acima do formulário.
-- **Área institucional:** navegação lateral escura, ícones funcionais próprios, identificação da pessoa na base do menu, tabelas e filtros em superfícies claras.
-- **Tipografia:** Manrope variável servida localmente; a logo fornecida permanece intacta.
-- **Interação:** entradas breves de imagem/conteúdo, retorno visual dos controles e suporte a movimento reduzido. Não há animação contínua.
-- **Imagens e licenças:** fotografia ilustrativa de AntanO, CC BY-SA 4.0; fonte sob OFL. Fontes, licença e uso constam em `frontend/static/assets/CREDITS.md`, com crédito e link também na interface. A fotografia não representa o laboratório fictício.
+As logos são próprias do projeto. Fotografia, fonte e licenças constam em [CREDITS.md](../facial_recognition/frontend/static/assets/CREDITS.md); a imagem não representa uma coleta ou instalação real. Os materiais e referências institucionais não indicam vínculo oficial.
 
-As skills clean e minimal orientaram as telas internas; design-taste-frontend orientou o portal. A revisão usa também as [Web Interface Guidelines](https://raw.githubusercontent.com/vercel-labs/web-interface-guidelines/main/command.md). Inspeção de screenshots em computador, tablet e celular não substitui validação em dispositivos físicos ou com leitor de tela.
-
-A checagem automática da skill é registrada em `work/redesign/`. O portal tem uma fotografia principal, em vez de preencher a página com quatro imagens e vídeo para cumprir uma meta de página promocional. Legendas e links de navegação também podem ser classificados pelo detector como rótulos acima de títulos; devem ser avaliados no contexto das capturas. Não se declara aprovação integral pelo inspetor.
-
-Foram repetidos os 41 testes estáticos/de cookies e os percursos de interface com respostas de API isoladas. A revisão estética não representa validação das rotas científicas ou da biometria contra dados reais. Nenhuma dependência de execução, framework, build ou integração externa foi adicionada.
-
+A revisão visual anterior usou respostas fictícias de API e câmera artificial do navegador. Seus registros locais, não versionados, não comprovam comportamento do backend final, transações, dispositivos físicos ou eficácia biométrica. O roteiro manual acima continua pendente com o backend atual.
 
 ### Consolidação de contratos — 02/11/2026
 
-O botão “Corrigir cadastro” deixou de inferir autorização pelos cards da página atual. Agora depende de can_edit === true na resposta da amostra, além de papel/permissão compatíveis. BiologicalAgentResponse exige esse campo; Amanda deve calculá-lo no backend com base no histórico completo e revalidar no PATCH. Campo ausente mantém a ação oculta, sem liberar edição por falta de dados.
+O botão “Corrigir cadastro” deixou de inferir autorização pelos cards da página atual. Agora depende de can_edit === true na resposta da amostra, além de papel/permissão compatíveis. BiologicalAgentResponse exige esse campo; o backend calcula esse valor com base no histórico completo e revalidar no PATCH. Campo ausente mantém a ação oculta, sem liberar edição por falta de dados.
 
 A revisão no navegador confirmou can_edit false/true/ausente em páginas e filtros diferentes e repetiu os percursos N1/N2/N3/ADMIN com respostas fictícias, sem erros JavaScript. A etapa simulada sem câmera também foi conferida com POST vazio protegido por CSRF e avanço para senha. As capturas permanecem em artefatos locais de revisão, não versionados; não são evidência de backend científico implementado.
 

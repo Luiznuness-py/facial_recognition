@@ -374,7 +374,6 @@ export async function newRequest() {
   });
   return [
     heading('Solicitar acesso', n2 ? 'Solicite um pesquisador N1 para sua equipe.' : 'Solicite um supervisor N2. O administrador decide a aprovação.'),
-    info('Dependência atual', 'Nesta versão do backend, a criação direta pelo ADMIN já existe. Solicitações pendentes de N2 e N3 ainda precisam ser implementadas.'),
     panel(f.node)
   ];
 }

@@ -1,156 +1,122 @@
-# APS — Laboratório de Biossegurança Ambiental
+# APS | Laboratório de Biossegurança Ambiental
 
-Projeto acadêmico local de autenticação facial e controle de acesso para um laboratório fictício do Ministério do Meio Ambiente. MVP reduzido aprovado em 05/10/2026: N1 registra uma investigação de agente desconhecido, N2 revisa e conclui, N3 decide a divulgação. Autenticação permanece como definida.
+Aplicação acadêmica para autenticação, controle de acesso e acompanhamento de investigações em um laboratório fictício de biossegurança ambiental. O sistema reúne cadastro de amostras, análises, revisão técnica, decisão de divulgação e consulta pública de notícias autorizadas.
 
-## Estado do projeto
+O projeto é independente e não representa um serviço oficial do Ministério do Meio Ambiente ou do ICMBio. O reconhecimento facial e a detecção de apresentação fraudulenta (PAD) fazem parte de um experimento; os testes de software não comprovam sua eficácia em uso real.
 
-O frontend institucional está em `/lab`, com notícias públicas, login e telas por papel. Autenticação, equipes, listagem de contas e cadastro direto pelo ADMIN têm chamadas para as rotas existentes. As telas científicas e os demais fluxos administrativos estão preparados conforme os contratos e informam quando dependem de backend ainda não implementado. Veja [telas, integração e roteiro manual](docs/FRONTEND.md) e [preparação da autenticação, testes e limites](docs/AUTH_LAB.md).
+## Visão geral
 
-`main.py` aplica as migrations pendentes e encerra a conexão, preservando as tabelas e os dados. Para iniciar a API e a interface, use o comando Uvicorn abaixo.
+| Participante | Responsabilidade |
+| --- | --- |
+| N1 responsável | Cadastrar amostras, preparar análises e entregar ao supervisor. |
+| N1 colaborador | Consultar somente as investigações compartilhadas com ele. |
+| N2 supervisor | Distribuir trabalho na sua equipe, revisar entregas e enviar relatórios ao N3. |
+| N3 autoridade | Consultar o cofre e decidir publicação, sigilo ou nova investigação. |
+| Administrador | Administrar contas e pedidos de acesso, sem acesso científico pelo cargo. |
+| Visitante | Consultar exclusivamente notícias publicadas. |
 
-## Documentação para revisar
+**Fluxo principal:** cadastro da amostra → análise do N1 → revisão do N2 → decisão do N3 → divulgação, quando autorizada.
 
-Leia nesta ordem:
+Uma amostra pode ter várias investigações ao longo do tempo, com apenas uma em andamento. Entregas e dossiês preservam cópias históricas; decisões terminais não reabrem a investigação. Pedidos N3 sucessivos mantêm motivos e vínculos próprios. As regras completas estão em [BUSINESS_RULES.md](docs/BUSINESS_RULES.md).
 
-1. [Como funciona o sistema](docs/BUSINESS_RULES.md): objetivo, participantes, acesso, fluxo e regras essenciais em linguagem simples.
-2. [Exemplo completo](docs/USE_CASES.md): uma investigação preenchida para visualizar o fluxo; inclui exemplos técnicos.
-3. [Endpoints e suas finalidades](docs/ENDPOINTS.md): chamadas das telas, dados, verificações, respostas e escolhas de implementação.
-4. [Tabelas e campos](docs/DATABASE.md): estrutura e garantias do banco alvo.
+## Funcionalidades
 
-Esses arquivos são a referência atual do planejamento, ainda para revisão. A documentação descreve o desenho do sistema e não representa código já implementado.
+- Pedidos institucionais de acesso, aprovação/rejeição e ciclo administrativo de contas.
+- Ativação com temporária, biometria e senha definitiva; recuperação de senha/face e troca voluntária.
+- Sessões com cookies HttpOnly, proteção CSRF, refresh com rotação e revogação no servidor.
+- Cadastro de amostras, rascunhos, entregas numeradas, colaboradores e troca de responsável.
+- Revisão com devolução, encerramento e envio de relatório/notícia ao cofre.
+- Publicação, sigilo, solicitação de nova investigação e retirada de notícias pelo N3.
+- Auditoria administrativa, autorização por ação/recurso e isolamento entre equipes.
 
-## Fluxo e responsabilidades
+Os fluxos usam exclusão lógica (`soft_delete`). A desativação de uma conta revoga o acesso e preserva sua identidade e a primeira data de ativação.
 
-- N1 cadastra agente e assume a primeira validação. Como responsável, edita/envia e compartilha com N1 do grupo; como colaborador, somente consulta a tarefa compartilhada.
-- N2 do grupo abre as validações seguintes e escolhe responsável; revisa, devolve, encerra ou envia conclusão/ficha ao N3. Cards Enviadas ao N3 mostram título, agente vinculado e situação da decisão, sem relatório selado. Um N2 habilitado por equipe.
-- N3 consulta o cofre e publica a ficha preparada ou mantém restrito; pode retirar notícia. Um N3 ativo.
-- ADMIN gerencia contas/acesso, sem conteúdo técnico/cofre pelo cargo; público consulta somente notícias aprovadas.
+## Tecnologias e organização
 
-Cadastro em `biological_agents`, análise em `validations`. Várias validações por agente, uma em andamento. Encerramento ou publicação libera outra; envio ao N3 mantém a vaga ocupada. Sigilo decidido pelo N3, sem pedido de ajuste ou nova validação, encerra a tarefa automaticamente e libera outra. Um responsável edita; colaboradores apenas leem. Compartilhamento pelo N1 responsável ou N2 supervisor do grupo, somente com N1 ativos do mesmo grupo; colaboradores apenas leem.
+| Área | Implementação |
+| --- | --- |
+| API | Python 3.13, FastAPI e schemas Pydantic. |
+| Persistência | PostgreSQL 16, asyncpg, SQL parametrizado e migrations SQL. |
+| Interface | HTML, CSS e módulos JavaScript, servidos pela própria API. |
+| Credenciais | Argon2id, JWT por finalidade e refresh opaco persistido como hash. |
+| Biometria | OpenCV YuNet/SFace, dois modelos MiniFASNet e templates criptografados com AES-GCM. |
+| Testes | pytest, TestClient, PostgreSQL transacional e cenários concorrentes isolados. |
 
-Seis tabelas do laboratório: `biological_agents`, `validations`, `validation_participants`, `investigation_submissions`, `vault` e `publications`. Entregas/dossiês pertencem à validação; publicação ao dossiê. Relatório e ficha juntos no cofre, sem acesso selado pelos colaboradores. Contas/autenticação usam as tabelas já definidas.
-
-Todas as 18 tabelas da aplicação usam `soft_delete`, sem exclusão física pelos fluxos do produto. Contas usam PENDING_ACTIVATION/ACTIVE, desativação por `soft_delete` e `activated_at` preservando a primeira ativação. `audit_events` concentra o log genérico de ações, sem novas tabelas de histórico. As rotas ainda precisam implementar filtros e restauração conforme esses contratos.
-
-Sem transferência entre grupos, rascunho ministerial separado, retificação, devolução pública ou substituição de notícia. Original/histórico preservados; retirada de publicação não reabre a tarefa anterior.
-
-## Acesso e autenticação
-
-Sem cadastro público. N2 solicita N1 da própria equipe; N3 solicita N2; ADMIN aprova ou cadastra diretamente. Temporária entregue manualmente, ativação com face e senha definitiva. ADMIN dispensa biometria. Reativação sempre exige reset de senha/face.
-
-Papéis/permissões no banco, autorização central por ação e recurso. Credenciais restritas de etapa, access JWT e refresh opaco em cookies HttpOnly. Detalhes completos, incluindo CSRF, expiração, recuperação e limites, ficam no plano geral e contratos.
-
-## Tecnologias e divisão
-
-Frontend HTML/CSS/JavaScript; FastAPI; PostgreSQL, SQL parametrizado e asyncpg. PostgreSQL pode executar em container local. Pipeline inicial YuNet/SFace e MiniFASNet/Silent-Face, com parâmetros a avaliar. Dupla do sistema usa simulador de desenvolvimento enquanto dupla dos modelos testa; simulador não comprova eficácia biométrica.
-
-## Preparar o ambiente local
-
-Execute os comandos na raiz deste repositório. Use **Python 3.13** e Docker Compose v2 se o PostgreSQL for executado em container. Não é necessário Node, npm ou build do frontend.
-
-#### Linux — Bash
-
-Instale Python 3.13 com suporte a venv/pip e Docker Engine com o plugin Compose (ou Docker Desktop para Linux). Confira:
-
-```bash
-python3.13 --version
-docker compose version
-docker info
+```text
+facial_recognition/
+├── app.py          # Aplicação, lifespan e contexto HTTP
+├── core/           # Conexão, autenticação, autorização e regras compartilhadas
+├── routers/        # Endpoints e transações de cada operação
+├── schemas/        # Entradas validadas e projeções de saída
+├── seed/           # Catálogos, primeiro ADMIN e carga local explícita
+├── migrations/     # Estrutura e garantias SQL
+├── exceptions/     # Erros do domínio biométrico e handlers HTTP
+├── utils/          # Respostas, datas, auditoria e lista local de senhas
+└── frontend/       # Interface e assets locais
+docs/               # Regras, arquitetura, contratos e evidências
+models/             # Quatro pesos usados no modo biométrico real
+tests/              # Testes de contratos, fluxos, modelos e concorrência
+main.py             # Comando manual de migrations, sem servidor ou reset
 ```
 
-No Ubuntu com Python 3.13 já instalado, se criar a venv falhar por ausência de `ensurepip`/pip:
+Não há build do frontend: Node e npm não são necessários para executar a aplicação. A arquitetura e os limites de cada módulo estão em [SYSTEM.md](docs/SYSTEM.md).
 
-```bash
-sudo apt install python3.13-venv
-```
+## Requisitos
 
-Esse pacote depende de a distribuição/repositório fornecer Python 3.13. Não substitua por Python 3.12 para este projeto.
+- Python 3.13 com pip e suporte a ambientes virtuais.
+- PostgreSQL acessível ou Docker com Compose v2 para usar [compose.yaml](compose.yaml).
+- Navegador com JavaScript. O modo `real` também exige webcam e permissão de câmera.
+- Os quatro pesos locais em `models/` para o modo `real`; origem, integridade e licenças em [models/README.md](models/README.md).
 
-#### Windows — PowerShell
+Os comandos abaixo são executados na raiz do repositório. Linux/Bash é o ambiente usado nas validações registradas; as instruções Windows/PowerShell estão documentadas, sem alegação de validação nativa no Windows.
 
-Instale Python 3.13 com pip e o launcher `py`. Instale e abra o Docker Desktop, usando o backend WSL 2 e containers Linux; conclua os requisitos de virtualização/WSL solicitados pelo instalador. O projeto pode ser executado pelo PowerShell, sem instalar Python dentro do WSL. Confira:
+## Configuração
 
-```powershell
-py -3.13 --version
-docker compose version
-docker info
-```
+Crie `.env` somente se ainda não existir:
 
-Referências de instalação: [venv do Python](https://docs.python.org/3.13/library/venv.html) e [Docker Desktop no Windows](https://docs.docker.com/desktop/setup/install/windows-install/). Os comandos Windows abaixo são para PowerShell, não para o Prompt de Comando (cmd).
-
-### 1. Configurar o .env
-
-Crie a cópia somente se ainda não houver `.env`; os comandos preservam uma configuração existente.
-
-**Linux — Bash:**
+**Linux — Bash**
 
 ```bash
 if [ ! -f .env ]; then cp .env.example .env; fi
 ```
 
-**Windows — PowerShell:**
+**Windows — PowerShell**
 
 ```powershell
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
-Edite os valores antes de subir o banco:
+Substitua os valores de exemplo antes de executar:
 
-| Campo | Como preencher |
-|---|---|
-| `ENVIRONMENT` | `development` para trabalhar preservando dados; `test` apaga o schema test no encerramento normal da API; `production` exige biometria real e HTTPS para emitir cookies. |
-| `BIOMETRICS_MODE` | Obrigatório: `simulated` para colegas sem webcam ou `real` para modelos reais. Simulação só é aceita em development/test. |
-| `DB_HOST` | `127.0.0.1` para a API no computador acessando o Compose. |
-| `DB_PORT` | Porta publicada no computador; padrão do exemplo: `5432`. |
-| `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Nome do banco, usuário e senha; o Compose usa esses mesmos valores para inicializar um volume novo. |
-| `ADMIN_EMAIL` | Email usado para criar o primeiro administrador. |
-| `ADMIN_SECRET` | Senha temporária inicial: 8–128 caracteres, fora da lista de senhas comuns; não é a chave dos tokens. |
-| `SECRET_KEY` | Raiz secreta com pelo menos 32 bytes aleatórios. Gere com o comando abaixo. |
+| Variável | Uso |
+| --- | --- |
+| `ENVIRONMENT` | `development` para uso local persistente; veja os efeitos de `test` abaixo. |
+| `BIOMETRICS_MODE` | Obrigatório: `simulated` para trabalhar sem webcam ou `real` para executar os modelos. |
+| `DB_HOST`, `DB_PORT` | Endereço do PostgreSQL; para o Compose local, `127.0.0.1` e a porta publicada. |
+| `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Banco e credenciais; o Compose usa esses valores ao inicializar um volume novo. |
+| `ADMIN_EMAIL`, `ADMIN_SECRET` | Email e senha temporária do primeiro administrador; não redefinem uma conta existente. |
+| `SECRET_KEY` | Raiz criptográfica de pelo menos 32 bytes aleatórios para tokens, CSRF e templates faciais. |
 
-**Linux — Bash:**
+Gere `SECRET_KEY` com `python3.13 -c "import secrets; print(secrets.token_urlsafe(48))"` no Linux ou `py -3.13 -c "import secrets; print(secrets.token_urlsafe(48))"` no Windows. Copie a saída somente para o `.env`. Não versione esse arquivo. Trocar a chave invalida tokens e impede ler templates criptografados com a chave anterior.
 
-```bash
-python3.13 -c "import secrets; print(secrets.token_urlsafe(48))"
-```
+`ADMIN_SECRET` deve ter 8–128 caracteres e não constar na lista local de senhas comuns. É uma senha temporária, não a chave dos tokens.
 
-**Windows — PowerShell:**
+## Executar localmente
 
-```powershell
-py -3.13 -c "import secrets; print(secrets.token_urlsafe(48))"
-```
+### 1. Iniciar o banco
 
-Copie a saída somente para `SECRET_KEY` no `.env`. Preserve essa chave enquanto precisar dos templates faciais criptografados: trocá-la impede a leitura dos vetores anteriores. `.env` é ignorado pelo Git; não compartilhe credenciais reais. Os valores `troque_...` do exemplo devem ser substituídos.
+Se não usar um PostgreSQL já existente, execute no Bash ou PowerShell com o Docker ativo:
 
-### 2. Iniciar o PostgreSQL com Docker Compose
-
-Se já tiver PostgreSQL acessível, use seus dados no `.env` e pule a criação do container. Caso contrário, execute os mesmos comandos no **Bash/Linux ou PowerShell/Windows**, com o Docker em execução:
-
-```bash
+```text
 docker compose up -d --wait postgres
 docker compose ps postgres
 ```
 
-O serviço usa PostgreSQL 16, publica `DB_PORT` e mantém os dados no volume `pgdata`. Aguarde o health check ficar saudável antes de iniciar a API. `DB_HOST` configura a conexão da API, não o endereço de publicação do Docker. O Compose atual publica a porta do banco nas interfaces do computador; não a exponha à internet.
+O serviço usa PostgreSQL 16 e preserva dados no volume `pgdata`. O Compose publica a porta configurada nas interfaces do computador; mantenha seu acesso restrito ao ambiente autorizado. Alterar as credenciais do `.env` não altera as de um volume já inicializado.
 
-Para investigar uma falha de inicialização, em ambos os sistemas:
+### 2. Instalar dependências e iniciar a API
 
-```bash
-docker compose logs --tail=100 postgres
-```
-
-Se a porta já estiver ocupada, escolha outra em `DB_PORT`. Se o Docker reportar permissão negada, confira o acesso do seu usuário ao daemon conforme a instalação da sua máquina; não mude permissões do socket para acesso público.
-
-Em um volume existente, mudar `DB_USER`, `DB_PASSWORD` ou `DB_NAME` no `.env` não recria o banco nem altera suas credenciais. Preserve a configuração original ou faça uma migração administrativa planejada. **Não use `docker compose down -v` para resolver conexão: isso remove o volume e apaga seus dados.**
-
-Para parar preservando o volume, em ambos os sistemas:
-
-```bash
-docker compose down
-```
-
-### 3. Instalar e executar com venv
-
-**Linux — Bash:**
+**Linux — Bash**
 
 ```bash
 python3.13 -m venv .venv
@@ -160,105 +126,132 @@ python -m pip install -r requirements.txt
 python -m uvicorn facial_recognition.app:app --reload --host 127.0.0.1
 ```
 
-**Windows — PowerShell:**
+**Windows — PowerShell**
 
 ```powershell
 py -3.13 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-python -m uvicorn facial_recognition.app:app --reload --host 127.0.0.1
-```
-
-Se o PowerShell bloquear `Activate.ps1`, não é necessário alterar a política de execução: use diretamente o Python da venv, sem ativá-la:
-
-```powershell
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe -m uvicorn facial_recognition.app:app --reload --host 127.0.0.1
 ```
 
-O PyTorch faz parte das dependências mesmo em modo simulado. Para evitar pacotes CUDA desnecessários no Linux/Windows, é possível instalar a versão CPU **antes** do requirements. Com a venv ativa, os comandos são iguais em Bash e PowerShell (sem ativação no Windows, substitua `python` por `.\.venv\Scripts\python.exe`):
+Os comandos Windows usam o executável diretamente e dispensam ativação da venv ou mudança da política do PowerShell. Se preferir ativar, use `.\.venv\Scripts\Activate.ps1` e depois `python`.
 
-```bash
-python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-python -m pip install -r requirements.txt
-```
+O PyTorch integra as dependências mesmo no modo simulado. Para instalar sua distribuição CPU antes do requirements, use `python -m pip install torch --index-url https://download.pytorch.org/whl/cpu`; no Windows sem ativação, substitua `python` por `.\.venv\Scripts\python.exe`.
 
-Abra **http://127.0.0.1:8000/lab**. O portal público e a tela de login estão disponíveis; endpoints ainda não implementados mostram pendência. A API aplica migrations e seeds automaticamente. Entre com `ADMIN_EMAIL`/`ADMIN_SECRET` e defina uma senha definitiva. O bootstrap não redefine contas existentes; alterar ADMIN_SECRET depois não troca a senha cadastrada.
+### 3. Abrir a interface
 
-Interrompa o Uvicorn com Ctrl+C. Ao voltar em outro terminal, na raiz do projeto:
+- Interface: [http://127.0.0.1:8000/lab](http://127.0.0.1:8000/lab).
+- Referência interativa da API: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
+- Verificação do processo: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health).
 
-**Linux — Bash:**
+O lifespan aplica migrations pendentes e executa os seeds de catálogos/ADMIN. Entre com `ADMIN_EMAIL` e `ADMIN_SECRET` e defina a senha definitiva. O bootstrap preserva contas existentes; alterar `ADMIN_SECRET` depois não troca a senha cadastrada.
 
-```bash
-source .venv/bin/activate
-python -m uvicorn facial_recognition.app:app --reload --host 127.0.0.1
-```
+Use Ctrl+C para parar a API. Para iniciar novamente, execute o comando Uvicorn no mesmo ambiente. `main.py` é opcional: aplica apenas migrations e preserva dados, sem servidor ou seeds.
 
-**Windows — PowerShell:**
+### Alternativa com Poetry
 
-```powershell
-.\.venv\Scripts\Activate.ps1
-python -m uvicorn facial_recognition.app:app --reload --host 127.0.0.1
-```
+Escolha venv/pip ou Poetry para manter um único ambiente de trabalho. Com Poetry instalado:
 
-Se não puder ativar, execute `.\.venv\Scripts\python.exe -m uvicorn facial_recognition.app:app --reload --host 127.0.0.1`.
-
-Use `deactivate` para sair da venv. Não é necessário rodar `main.py` antes da API: esse comando aplica apenas migrations, sem servidor ou seeds, e preserva dados.
-
-### Alternativa: Poetry
-
-Escolha venv ou Poetry, sem instalar em dois ambientes por engano. Instale o Poetry antes de usar esta alternativa.
-
-**Linux — Bash:**
+**Linux — Bash**
 
 ```bash
 poetry env use python3.13
-poetry install
+poetry install --extras test
 poetry run uvicorn facial_recognition.app:app --reload --host 127.0.0.1
 ```
 
-**Windows — PowerShell:**
+**Windows — PowerShell**
 
 ```powershell
 $projectPython = py -3.13 -c "import sys; print(sys.executable)"
 poetry env use "$projectPython"
-poetry install
+poetry install --extras test
 poetry run uvicorn facial_recognition.app:app --reload --host 127.0.0.1
 ```
 
-Para instalar também os testes: `poetry install --extras test`. O Poetry usa o índice CPU para torch.
+O índice CPU do PyTorch está declarado no `pyproject.toml`. Não é necessário instalar o requirements novamente no ambiente Poetry.
 
-## Ambientes, biometria e dados
+## Ambientes, biometria e persistência
 
-- `development`: usa o schema `public`, preservando dados ao encerrar.
-- `test`: usa o mesmo `DB_NAME`, mas no schema `test`; o lifespan remove e recria esse schema ao encerrar normalmente, antes de fechar o pool. Não use esse ambiente para dados que deseja preservar. Reinício automático por `--reload` também encerra o lifespan e executa o reset.
-- `production`: usa `public`; simulação não é permitida e HTTP não emite cookies, mesmo em loopback.
+| Ambiente | Schema | Comportamento |
+| --- | --- | --- |
+| `development` | `public` | Preserva dados ao encerrar; aceita `real` ou `simulated`. |
+| `test` | `test`, no mesmo `DB_NAME` | O encerramento normal da API reseta esse schema; os fixtures pytest fazem rollback externo. |
+| `production` | `public` | Exige modo `real` e HTTPS para emissão de cookies; preparação de produção não foi validada. |
 
-`BIOMETRICS_MODE=simulated` permite avançar a etapa facial sem webcam, mantendo senha, CSRF, permissões e sessões. Não cria vetores falsos. Credenciais de simulação não valem no modo real. Contas ativadas sem face precisam de recadastro/recuperação facial para uso real; o fluxo administrativo correspondente continua pendente. Confira [autenticação e modos](docs/AUTH_LAB.md#modo-obrigatório-de-biometria).
+**Não use `ENVIRONMENT=test` para dados que deseja preservar.** O reinício por `--reload` também encerra o lifespan. Os testes comuns não devem executar em paralelo ou junto de uma API usando o schema `test`.
 
-Em `real`, o lifespan carrega YuNet, SFace e os dois MiniFASNet locais. Os quatro pesos acompanham o repositório em `models/`; não há download na inicialização. Arquivos ausentes/incompatíveis impedem iniciar em modo real. Consulte [origem, hashes e licenças](models/README.md). Em `simulated`, esses pesos não são carregados.
+O modo `simulated` mantém senha, etapas, CSRF, permissões e sessões, mas não executa reconhecimento ou PAD e não cria vetores fictícios. Contas ativadas sem face precisam de recuperação BIOMETRIC autorizada pelo ADMIN antes de usar o modo real. Credenciais de simulação não valem no modo real.
 
-HTTP sem cookie Secure é permitido somente em loopback e development/test. Celular pelo IP de rede precisa de HTTPS confiável para autenticação e câmera. Túnel/HTTPS remoto será configurado depois; não basta trocar o host para `0.0.0.0`.
+No modo `real`, os quatro pesos são carregados localmente antes de liberar a API; não há download automático. Capturas exigem cinco imagens e os limites descritos em [AUTH_LAB.md](docs/AUTH_LAB.md).
 
-A migration 001 define o schema para bancos novos. Editá-la não atualiza bancos que já a registraram; uma evolução de banco existente exige migration adicional ou decisão explícita de recriação. O reset de test no encerramento é separado desse mecanismo.
+HTTP com cookies sem Secure só é aceito em loopback e development/test. Acesso por IP de rede, celular ou produção exige mesma origem HTTPS e certificado confiável. A configuração de HTTPS remoto e a captura em dispositivos físicos permanecem pendentes de validação.
 
-## Testes
+Migrations aplicadas não são reaplicadas ao editar seu arquivo. Evoluções de instalações existentes exigem nova migration. Nunca use `docker compose down -v` como solução de conexão: ele remove o volume. `docker compose down` interrompe os serviços preservando o volume.
 
-Com a venv ativa e PostgreSQL acessível, os comandos são iguais no Bash/Linux e PowerShell/Windows:
+## Carga fictícia de desenvolvimento
+
+Com `ENVIRONMENT=development` e `BIOMETRICS_MODE=simulated`, execute explicitamente:
+
+```bash
+python -m facial_recognition.seed.development
+```
+
+No Windows sem ativação, use `.\.venv\Scripts\python.exe`; com Poetry, use `poetry run python`. A carga cria seis contas fictícias, além do ADMIN, e uma amostra com primeira investigação:
+
+| Conta | Papel |
+| --- | --- |
+| `n1.a@example.com` | N1 responsável da Equipe A |
+| `colaborador.a@example.com` | Outro N1 da Equipe A |
+| `n2.a@example.com` | N2 da Equipe A |
+| `n1.b@example.com` | N1 da Equipe B |
+| `n2.b@example.com` | N2 da Equipe B |
+| `n3@example.com` | Autoridade N3 |
+
+A temporária das contas novas é **`Temporary!Demo2026`**, válida por 24 horas; ADMIN usa a configuração local. As contas precisam concluir a ativação. A carga não roda automaticamente, não redefine senhas nem restaura contas existentes. Conflito de vaga N2/N3 reverte a transação inteira.
+
+## Testes e qualidade
+
+Com PostgreSQL acessível e o ambiente Python preparado:
 
 ```bash
 python -m pip install "pytest>=8" "httpx>=0.28"
-python -m pytest -q tests
+python -m pytest -q --disable-warnings --tb=short
 ```
 
-No Windows sem ativação da venv, use `.\.venv\Scripts\python.exe` no lugar de `python` nos comandos de teste.
+Em Poetry, o extra `test` instala as dependências: execute `poetry run pytest -q --disable-warnings --tb=short`. No Windows sem ativação, use o Python da venv.
 
-O pytest força `ENVIRONMENT=test` e `BIOMETRICS_MODE=real`; os testes de fluxo substituem a inferência, e os testes do simulador configuram o modo explicitamente. Testes com banco usam transação e rollback sobre o schema test; não execute em paralelo nem junto da API test. Não use seu banco com dados importantes para validações. Os smokes com modelos reais podem ser ignorados se não houver dataset local; isso não comprova eficácia biométrica. Veja [isolamento e limites](docs/AUTH_LAB.md#testes-reproduzíveis).
+Os testes comuns usam o schema `test` com rollback. Os cenários concorrentes usam conexões independentes e schemas aleatórios removidos em `finally`. Testes de fluxo substituem explicitamente a inferência; smokes com pesos reais não medem acurácia ou resistência a fraude. Sem dataset local, o smoke correspondente pode ser ignorado.
 
-Os contratos em [ENDPOINTS.md](docs/ENDPOINTS.md) incluem links para os schemas de entrada e saída de cada rota. As distribuições em [AMANDA.md](docs/AMANDA.md), [JOAO.md](docs/JOAO.md) e [LUIZ.md](docs/LUIZ.md) repetem esses atalhos para facilitar a implementação.
+Resultados executados, regressões de concorrência e contagens de consultas estão em [AUTH_LAB.md](docs/AUTH_LAB.md#validação-da-implementação--04112026). A integração visual com o backend final, a calibração e a eficácia facial/PAD não estão comprovadas por essa suíte.
 
-## Bancada biométrica
+## Documentação
 
-O guia de execução e a explicação da implementação estão em [AUTH_LAB.md](docs/AUTH_LAB.md). Nenhum banco existente é apagado na inicialização.
+| Documento | Conteúdo |
+| --- | --- |
+| [Regras de negócio](docs/BUSINESS_RULES.md) | Participantes, acesso, estados e invariantes do laboratório. |
+| [Arquitetura](docs/SYSTEM.md) | Componentes, limites, transações e fluxo entre interface, API e banco. |
+| [Caso de uso completo](docs/USE_CASES.md) | Exemplo fictício da aprovação da conta à decisão sobre a notícia. |
+| [Contratos HTTP](docs/ENDPOINTS.md) | Rotas, permissões, schemas, respostas, erros e complementos. |
+| [Banco de dados](docs/DATABASE.md) | Tabelas, relacionamentos, constraints, exclusão lógica e locks. |
+| [Autenticação e validação](docs/AUTH_LAB.md) | Implementação biométrica, testes executados e limites de evidência. |
+| [Frontend](docs/FRONTEND.md) | Módulos, contratos de interface e roteiro de validação manual. |
+| [Amanda](docs/AMANDA.md), [João](docs/JOAO.md), [Luiz](docs/LUIZ.md) | Responsabilidades por área e critérios de revisão. |
+| [Modelos](models/README.md) e [créditos visuais](facial_recognition/frontend/static/assets/CREDITS.md) | Origem, integridade e licenças dos materiais de terceiros. |
+
+## Diagnóstico local
+
+| Sintoma | Conferência |
+| --- | --- |
+| PostgreSQL indisponível | `docker compose ps postgres`, `docker compose logs --tail=100 postgres` e parâmetros `DB_*`. |
+| Porta ocupada | Ajustar `DB_PORT` para o banco ou `--port` no Uvicorn e manter interface/API na mesma origem. |
+| Senha temporária vencida | Revalidação autorizada pelo ADMIN; alterar `.env` não recupera conta existente. |
+| Falta de pesos no modo real | Conferir os quatro arquivos e hashes em `models/README.md`. |
+| Ativação sem webcam | Usar simulação somente em development/test, preservando as etapas obrigatórias. |
+| Cookies recusados fora de loopback | Preparar HTTPS confiável; publicar apenas em `0.0.0.0` não resolve o transporte. |
+| Venv sem pip no Ubuntu | Conferir o pacote `python3.13-venv` da distribuição antes de recriar o ambiente. |
+
+## Licenças e atribuições
+
+As licenças dos modelos e demais materiais de terceiros estão preservadas em `licenses/` e nos créditos vinculados acima. A fotografia ilustra a fauna e não representa uma instalação ou coleta do laboratório fictício. Referências institucionais não indicam vínculo oficial.

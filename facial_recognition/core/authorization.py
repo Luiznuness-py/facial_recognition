@@ -59,7 +59,9 @@ class Authorization:
             self.code,
         )
 
-        if not allowed:
+        # Permissão configurada não remove a exclusividade institucional do cofre N3.
+        n3_only = self.code in {'vault.read', 'vault.decide', 'publications.read', 'publications.publish'}
+        if not allowed or (n3_only and user['role'] != 'N3'):
             raise HTTPException(
                 status_code=403,
                 detail="Sua conta não possui permissão para esta ação.",

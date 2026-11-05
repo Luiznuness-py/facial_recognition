@@ -1,6 +1,6 @@
-# Uma pessoa entra e o trabalho percorre o sistema
+# Caso de uso completo: da ativação à divulgação
 
-Este exemplo é fictício e serve para visualizar as telas, campos e regras, não para simular um diagnóstico real. Não atribuímos dados científicos verdadeiros à COVID-19. A estrutura inicial do banco está na migration 001; as rotas ainda serão implementadas. Leia junto com [Como funciona o sistema](BUSINESS_RULES.md), [Endpoints](ENDPOINTS.md) e [Tabelas](DATABASE.md).
+Este exemplo fictício apresenta o fluxo implementado, seus campos e suas decisões alternativas. Não descreve diagnóstico, evento sanitário ou dados científicos reais. Leia junto com [Regras de negócio](BUSINESS_RULES.md), [Endpoints](ENDPOINTS.md) e [Banco de dados](DATABASE.md). Os testes executados e seus limites estão em [AUTH_LAB.md](AUTH_LAB.md).
 
 ## 1. Quem participa do exemplo
 
@@ -10,9 +10,9 @@ Ana: N1 responsável da Equipe A. Bruno: N1 colaborador da mesma equipe. Carla: 
 
 Diego preenche Solicitar acesso: nome “Ana Lima”, email “ana@laboratorio.exemplo”, senha temporária escolhida fora deste documento. O backend define N1/Equipe A. `POST /api/v1/access-requests` cria pedido pendente, não usuário.
 
-ADMIN aprova em `POST /api/v1/access-requests/{id}/approve`. Conta nasce pendente de ativação, senha vale 24 horas. Diego entrega a senha manualmente. O sistema não envia email. Os emails deste exemplo são fictícios; o catálogo real de domínios não será filtrado no MVP.
+ADMIN aprova em `POST /api/v1/access-requests/{id}/approve`. Conta nasce pendente de ativação, senha vale 24 horas. Diego entrega a senha manualmente. O sistema não envia email. Os emails deste exemplo são ilustrativos; nas requisições reais, o schema valida o formato do endereço.
 
-Ana abre Login. A página prepara CSRF e envia email/senha a `POST /api/v1/auth/login`. Recebe cookie restrito de cadastro facial, não access/refresh. Captura a face; servidor exige PAD e cadastro autorizado. Em `POST /api/v1/auth/biometric/enroll` a face é guardada criptografada e a etapa muda para definir senha por mais cinco minutos. Ana envia nova senha/confirmacão a `POST /api/v1/auth/password/complete`. Só agora nasce sessão de até 24 horas, com access de até 15 minutos e refresh em cookies inacessíveis ao JavaScript.
+Ana abre Login. A página prepara CSRF e envia email/senha a `POST /api/v1/auth/login`. Recebe cookie restrito de cadastro facial, não access/refresh. Captura a face; servidor exige PAD e cadastro autorizado. Em `POST /api/v1/auth/biometric/enroll` a face é guardada criptografada e a etapa muda para definir senha por mais cinco minutos. Ana envia nova senha/confirmação a `POST /api/v1/auth/password/complete`. Só agora nasce sessão de até 24 horas, com access de até 15 minutos e refresh em cookies inacessíveis ao JavaScript.
 
 Se Ana parar na senha e a temporária vencer, ADMIN revalida a MESMA temporária. Como já existe face, Ana passa por reconhecimento/PAD e volta à definição de senha, sem cadastrar outro rosto. Em login normal, sempre senha → face/PAD → sessão. ADMIN dispensa face.
 
@@ -189,6 +189,8 @@ Estas são alternativas, não decisões aplicadas juntas ao mesmo dossiê.
 
 Exemplo de pedido: “Complementar a investigação com os pontos de acompanhamento descritos no pedido.” Diego vê esse texto no card e, na página A-001, escolhe Carla para nova tarefa. Vincula o pedido a V-002; ele passa a atendido. Carla começa outro rascunho e pode incluir Ana em leitura. Não se edita o dossiê anterior, não se cria outra amostra e não se abre uma segunda tarefa em andamento.
 
+Se V-002 também gerar um dossiê e Marina pedir outra investigação, o card desse segundo envio mostra o novo motivo e seu atendimento pendente. V-002 continua mostrando o pedido que a originou; V-003 atenderá o segundo pedido. Motivos e vínculos não são reaproveitados entre gerações.
+
 Se a amostra foi inativada após o fechamento, Diego precisa ativá-la antes de atribuir V-002. Se Diego for substituído, o novo N2 da Equipe A vê o pedido do grupo, preservando autoria anterior.
 
 ## 9. Como a notícia aparece
@@ -247,4 +249,4 @@ stateDiagram-v2
 - Cookie access expirou e refresh válido: renovar e repetir chamada uma vez; refresh revogado/expirado leva ao Login.
 - Tentativa de cadastro de face sem autorização ou com token antigo: negada.
 
-Esses exemplos são objetivos para os testes futuros, não testes já executados.
+A suíte cobre as regras de escopo, estados, concorrência, sessões e preservação descritas aqui. O exemplo narrativo não é um registro de execução visual. Consulte [a evidência por arquivo de teste](AUTH_LAB.md#validação-da-implementação--04112026) antes de atribuir validação a um cenário.

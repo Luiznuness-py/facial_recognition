@@ -18,7 +18,14 @@ from facial_recognition.utils.utils import audit
 
 @pytest.fixture
 def tracked_client():
-    """Prepara HTTP e auditoria simulada, sem banco ou modelos reais."""
+    """Prepara HTTP e auditoria simulada, sem banco ou modelos reais.
+
+    Instala middlewares e handlers reais em uma aplicação isolada com auditoria AsyncMock. Não
+    executa o lifespan do produto ou acessa PostgreSQL.
+
+    Yields:
+        tuple: TestClient e conexão simulada para inspecionar os eventos registrados.
+    """
     app = FastAPI()
     app.add_middleware(RequestLimits)
     app.middleware('http')(response_headers)
@@ -29,7 +36,17 @@ def tracked_client():
 
     @app.get('/api/v1/events')
     async def events(request: Request):
-        """Emite dois eventos na conexão simulada para conferir correlação."""
+        """Emite dois eventos na conexão simulada para conferir correlação.
+
+        Usa o request_id do middleware para gravar dois eventos no mock de conexão.
+
+        Args:
+            request: Requisição HTTP com cookies, origem e contexto de auditoria quando
+                utilizado.
+
+        Returns:
+            dict[str, bool]: Confirmação fictícia da rota de teste.
+        """
         for event in ['FACE_VERIFIED', 'SESSION_CREATED']:
             await audit(connection, None, event, 'sessions',
                         request_id=request.state.request_id)
@@ -37,17 +54,34 @@ def tracked_client():
 
     @app.post('/api/v1/input')
     async def input_data(value: int):
-        """Expõe um parâmetro tipado para provocar erro de validação HTTP."""
+        """Expõe um parâmetro tipado para provocar erro de validação HTTP.
+
+        O FastAPI valida o parâmetro antes da chamada; a rota retorna apenas o valor aceito.
+
+        Args:
+            value: Inteiro recebido pelo parser HTTP para testar validação de entrada.
+
+        Returns:
+            dict[str, int]: Valor recebido, sem persistência.
+        """
         return {'value': value}
 
     @app.get('/api/v1/denied')
     async def denied():
-        """Produz uma recusa HTTP controlada para testar seu envelope."""
+        """Produz uma recusa HTTP controlada para testar seu envelope.
+
+        Raises:
+            HTTPException: Sempre lança 403 com a mensagem fictícia do cenário.
+        """
         raise HTTPException(403, 'Acesso negado')
 
     @app.get('/api/v1/broken')
     async def broken():
-        """Provoca falha inesperada para conferir sanitização e correlação."""
+        """Provoca falha inesperada para conferir sanitização e correlação.
+
+        Raises:
+            RuntimeError: Sempre lança a mensagem interna que o handler deve sanitizar.
+        """
         raise RuntimeError('secret must not escape')
 
     with TestClient(app, raise_server_exceptions=False) as client:
@@ -55,7 +89,18 @@ def tracked_client():
 
 
 def test_audit_shares_server_generated_request_id(tracked_client):
-    """Confere o mesmo UUID por chamada e ignora o valor enviado pelo cliente."""
+    """Confere o mesmo UUID por chamada e ignora o valor enviado pelo cliente.
+
+    Args:
+        tracked_client: Tupla com TestClient e conexão de auditoria simulada, sem banco ou
+            modelos.
+
+    Returns:
+        None: O cenário termina quando todas as asserções são satisfeitas.
+
+    Raises:
+        AssertionError: Quando o comportamento observado diverge do resultado esperado.
+    """
     client, connection = tracked_client
     first = client.get('/api/v1/events', headers={'X-Request-ID': 'client-value'})
     second = client.get('/api/v1/events')
@@ -73,7 +118,21 @@ def test_audit_shares_server_generated_request_id(tracked_client):
     ('/api/v1/broken', 500),
 ])
 def test_errors_include_same_id_and_internal_log(tracked_client, caplog, path, status):
-    """Relaciona cabeçalho, erro e log pelo mesmo UUID sem expor detalhes internos."""
+    """Relaciona cabeçalho, erro e log pelo mesmo UUID sem expor detalhes internos.
+
+    Args:
+        tracked_client: Tupla com TestClient e conexão de auditoria simulada, sem banco ou
+            modelos.
+        caplog: Fixture pytest que captura logs para verificar a correlação e sanitização.
+        path: Caminho HTTP relativo usado pela requisição do cenário.
+        status: Código HTTP esperado para o cenário parametrizado.
+
+    Returns:
+        None: O cenário termina quando todas as asserções são satisfeitas.
+
+    Raises:
+        AssertionError: Quando o comportamento observado diverge do resultado esperado.
+    """
     client, _ = tracked_client
     response = client.get(path)
     assert response.status_code == status
@@ -86,7 +145,18 @@ def test_errors_include_same_id_and_internal_log(tracked_client, caplog, path, s
 
 
 def test_validation_and_body_limit_include_request_id(tracked_client):
-    """Confere identificação de erros do parser e do limite de corpo."""
+    """Confere identificação de erros do parser e do limite de corpo.
+
+    Args:
+        tracked_client: Tupla com TestClient e conexão de auditoria simulada, sem banco ou
+            modelos.
+
+    Returns:
+        None: O cenário termina quando todas as asserções são satisfeitas.
+
+    Raises:
+        AssertionError: Quando o comportamento observado diverge do resultado esperado.
+    """
     client, _ = tracked_client
     for body, status in [(b'', 422), (b'x' * (256 * 1024 + 1), 413)]:
         response = client.post('/api/v1/input', content=body)
@@ -95,7 +165,18 @@ def test_validation_and_body_limit_include_request_id(tracked_client):
 
 
 def test_rate_limit_includes_request_id_and_retry_after(tracked_client):
-    """Preserva correlação e orientação de nova tentativa no bloqueio de frequência."""
+    """Preserva correlação e orientação de nova tentativa no bloqueio de frequência.
+
+    Args:
+        tracked_client: Tupla com TestClient e conexão de auditoria simulada, sem banco ou
+            modelos.
+
+    Returns:
+        None: O cenário termina quando todas as asserções são satisfeitas.
+
+    Raises:
+        AssertionError: Quando o comportamento observado diverge do resultado esperado.
+    """
     client, _ = tracked_client
     for _ in range(121):
         response = client.get('/api/v1/missing')
@@ -105,7 +186,14 @@ def test_rate_limit_includes_request_id_and_retry_after(tracked_client):
 
 
 def test_real_app_registers_context_before_limits():
-    """Verifica a ordem real dos middlewares sem executar o lifespan."""
+    """Verifica a ordem real dos middlewares sem executar o lifespan.
+
+    Returns:
+        None: O cenário termina quando todas as asserções são satisfeitas.
+
+    Raises:
+        AssertionError: Quando o comportamento observado diverge do resultado esperado.
+    """
     from facial_recognition.app import app
     # Sem contexto de lifespan: não abre banco nem executa o reset de test.
     client = TestClient(app, raise_server_exceptions=False)
@@ -118,13 +206,28 @@ def test_real_app_registers_context_before_limits():
 
 
 def test_concurrent_requests_keep_separate_ids(tracked_client):
-    """Impede mistura de identificadores entre chamadas simultâneas."""
+    """Impede mistura de identificadores entre chamadas simultâneas.
+
+    Args:
+        tracked_client: Tupla com TestClient e conexão de auditoria simulada, sem banco ou
+            modelos.
+
+    Returns:
+        None: O cenário termina quando todas as asserções são satisfeitas.
+
+    Raises:
+        AssertionError: Quando o comportamento observado diverge do resultado esperado.
+    """
     import asyncio
     import httpx
     client, connection = tracked_client
 
     async def scenario():
-        """Executa o cenário assíncrono isolado e devolve seus resultados."""
+        """Executa o cenário assíncrono isolado e devolve seus resultados.
+
+        Returns:
+            list[httpx.Response]: Respostas das cinco requisições simultâneas.
+        """
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=client.app), base_url='http://testserver',
         ) as async_client:

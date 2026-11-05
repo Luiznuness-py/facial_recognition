@@ -39,7 +39,7 @@ def now():
     return datetime.now(timezone.utc)
 
 
-async def audit(connection, actor, event, resource_type, target=None, success=True, *, request_id):
+async def audit(connection, actor, event, resource_type, target=None, success=True, *, request_id, reason=None):
     """Registra uma ação com autoria, tipo de recurso e resultado.
 
     Participa da transação do chamador e não abre uma transação própria. O request_id é
@@ -53,9 +53,10 @@ async def audit(connection, actor, event, resource_type, target=None, success=Tr
         target: UUID do recurso afetado ou None quando não houver alvo específico.
         success: Indica se a ação registrada teve sucesso.
         request_id: UUID compartilhado pelos eventos desta requisição.
+        reason: Motivo administrativo permitido; conteúdo científico reservado não é copiado.
 
     Returns:
         None: Insere uma linha em audit_events com o request_id recebido.
     """
-    await connection.execute('INSERT INTO audit_events(actor_id,event,resource_type,resource_id,success,request_id) VALUES($1,$2,$3,$4,$5,$6)',
-                             actor, event, resource_type, target, success, request_id)
+    await connection.execute('INSERT INTO audit_events(actor_id,event,resource_type,resource_id,success,reason,request_id) VALUES($1,$2,$3,$4,$5,$6,$7)',
+                             actor, event, resource_type, target, success, reason, request_id)

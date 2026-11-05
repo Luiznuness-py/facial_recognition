@@ -1,6 +1,23 @@
 """Papéis, permissões e equipes iniciais usados pela bancada."""
 PERMISSIONS = {
     'teams.read': ('ADMIN', 'N1', 'N2', 'N3'),
+    'agents.create': ('N1',),
+    'agents.read': ('N1', 'N2'),
+    'agents.update': ('N1', 'N2'),
+    'agents.manage': ('N2',),
+    'validations.read': ('N1', 'N2'),
+    'validations.create': ('N2',),
+    'analyses.write': ('N1',),
+    'validations.share': ('N1', 'N2'),
+    'validations.participants.manage': ('N2',),
+    'validations.review': ('N2',),
+    'reports.send': ('N2',),
+    'reports.read': ('N2',),
+    'vault.read': ('N3',),
+    'vault.decide': ('N3',),
+    'publications.publish': ('N3',),
+    'publications.read': ('N3',),
+
     'accounts.request': ('ADMIN', 'N2', 'N3'),
     'accounts.request.read': ('ADMIN', 'N2', 'N3'),
     'accounts.manage': ('ADMIN',), 'accounts.approve': ('ADMIN',),
@@ -12,8 +29,8 @@ async def seed_catalogs(connection):
     """Insere papéis, permissões, vínculos e equipes iniciais que ainda faltam.
 
     Usa conflitos de chave para preservar registros existentes e não limpa soft_delete de
-    vínculos desativados. Os códigos em PERMISSIONS definem o recorte implementado, não
-    todas as permissões futuras do laboratório.
+    vínculos desativados. Os códigos em PERMISSIONS cobrem as operações administrativas
+    e científicas dos contratos atuais.
 
     Args:
         connection: Conexão PostgreSQL vinculada ao schema e à requisição atuais.

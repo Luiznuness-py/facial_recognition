@@ -1,4 +1,4 @@
-# Créditos dos assets
+# Créditos e licenças dos recursos visuais
 
 ## Fotografia de tucano
 
@@ -23,4 +23,6 @@
 
 ## Marca do projeto
 
-Os arquivos `logo-com-texto.png` e `logo-simbolo.png` foram fornecidos e aprovados pelo usuário. Foram preservados sem redesenho.
+Os arquivos `logo-com-texto.png` e `logo-simbolo.png` são a identidade própria aprovada para o projeto acadêmico. Sua utilização não indica vínculo oficial com ICMBio, MMA ou outra instituição. Os arquivos foram preservados sem redesenho.
+
+Este documento registra a origem e as condições dos materiais de terceiros. A licença da fotografia e a licença da fonte não se estendem automaticamente ao código da aplicação; as licenças dos pesos estão em [models/README.md](../../../../models/README.md).

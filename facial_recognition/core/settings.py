@@ -48,11 +48,11 @@ class Settings(BaseSettings):
     BIOMETRICS_MODE: Literal["real", "simulated"] = Field(
         ..., description="Modo obrigatório da biometria: real ou simulated")
     ASYNC_MODE: bool = Field( default=True, description="liga/desliga async engine")
-    
+
     # Security Configurations
     ADMIN_EMAIL: str = Field(default="admin@facialrecognition.com", env="ADMIN_EMAIL")
     ADMIN_SECRET: str = Field(env="ADMIN_SECRET")
-    
+
     # Database Configuration - Using separate parameters (NOT DATABASE_URL)
     DB_USER: str = Field(default="postgres", description="Database user")
     DB_PASSWORD: str = Field(default="postgrespwd", description="Database password")
@@ -88,10 +88,20 @@ class Settings(BaseSettings):
             str: Nome convertido para minúsculas; não restringe o conjunto de ambientes.
         """
         return v.lower()
-    
+
     @model_validator(mode="after")
     def validate_biometrics_mode(self):
-        """Impede simulação fora dos ambientes locais explicitamente permitidos."""
+        """Impede simulação fora dos ambientes locais explicitamente permitidos.
+
+        Validador de modelo executado após os campos. O modo real é permitido em qualquer
+        ambiente; simulated exige development ou test.
+
+        Returns:
+            Self: Instância de configuração validada.
+
+        Raises:
+            ValueError: Quando simulated é combinado com outro ambiente.
+        """
         if self.BIOMETRICS_MODE == "simulated" and self.ENVIRONMENT not in {"development", "test"}:
             raise ValueError("Biometria simulada permitida somente em development ou test.")
         return self

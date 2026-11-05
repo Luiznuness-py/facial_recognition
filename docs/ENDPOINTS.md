@@ -1,10 +1,10 @@
-# Endpoints — chamadas do sistema e suas finalidades
+# Referência da API HTTP
 
 Este arquivo é a referência para desenvolver a comunicação entre as telas e o servidor. Um endpoint é o endereço usado para executar uma ação ou consultar informações. `GET` consulta, `POST` executa uma ação ou cria um registro, `PATCH` altera campos e `DELETE` remove um vínculo quando permitido.
 
 Para entender o funcionamento sem detalhes técnicos, leia [Como funciona o sistema](BUSINESS_RULES.md). O [banco alvo](DATABASE.md) descreve as tabelas e o [exemplo completo](USE_CASES.md) mostra uma investigação preenchida.
 
-**Estado:** estes endpoints são contratos planejados. Este documento não comprova que as rotas estejam implementadas ou testadas. As escolhas técnicas continuam sujeitas à revisão e aos testes indicados abaixo.
+**Estado em 04/11/2026:** as operações deste contrato estão implementadas no checkout e sua presença é conferida no OpenAPI por teste. Evidências de comportamento e limites estão em [AUTH_LAB.md](AUTH_LAB.md#escopo-implementado-e-limites); a presença da rota não comprova integração visual nem eficácia biométrica.
 
 ## Onde encontrar cada ação
 
@@ -109,7 +109,7 @@ Renova os cookies quando o access vence, evitando pedir biometria a cada quinze 
 
 - Quem/credencial: Conforme a credencial e a etapa descritas abaixo.
 - Recebe: Refresh Token opaco em cookie HttpOnly e CSRF.
-- Confere e faz: Hash, rotação, replay, sessão/conta; mantém limite absoluto de 24h.
+- Confere e faz: Hash, rotação, replay, sessão/conta; mantém limite absoluto de 24h. Localiza sem lock, bloqueia sessão antes do token e revalida o token sob lock, na mesma ordem da revogação de acesso.
 - Responde: 200: validade/metadados, sem tokens no JSON; cookies access e refresh substituídos.
 
 ### `POST /auth/logout`
@@ -299,7 +299,7 @@ Monta a lista de agentes ativos/inativos que a pessoa pode consultar.
 - Quem/credencial: `agents.read`: N1/N2
 - Recebe: Paginação/pesquisa; filtro ativo/inativo.
 - Confere e faz: N1 com responsabilidade/participação autorizada; N2 equipe; inclui inativos para consulta do histórico e filtra totais.
-- Responde: 200: cadastro permitido, sem análises invisíveis.
+- Responde: 200: cadastro permitido, sem análises invisíveis. `can_edit` considera todas as entregas históricas, inclusive excluídas logicamente, calculado na consulta da página sem consulta adicional por amostra. Filtros e paginação não limitam o histórico considerado; PATCH revalida após bloquear a amostra.
 
 ### `GET /biological-agents/{id}`
 
@@ -321,7 +321,7 @@ Monta os cards da página do agente, incluindo apenas tarefas que o usuário pod
 - Quem/credencial: `validations.read`: N1/N2
 - Recebe: Paginação/status.
 - Confere e faz: N1 somente responsável/participante de cada tarefa; N2 grupo.
-- Responde: 200: cards autorizados, total filtrado.
+- Responde: 200: cards autorizados, total filtrado. Responsável, última entrega não excluída e pedido que originou a investigação são projetados na consulta da página, sem consultas adicionais por card.
 
 ### `POST /biological-agents/{id}/validations`
 
@@ -642,23 +642,23 @@ Além de `responsible_user_id`, recebe `request_vault_id` opcional quando atende
 
 ### Complemento de `GET /reports/sent`
 
-Além do título, agente, protocolo e situação, retorna `vault_id` como identificador da ação (não autorização de leitura), e `new_validation_request:{reason,requested_at,fulfilled_validation_id}` somente quando há pedido. N2 nunca recebe o motivo de sigilo/retirada. Situação do card: WAITING_N3, PUBLISHED, RESTRICTED, NEW_VALIDATION_REQUESTED; se publicada e retirada, mostrar WITHDRAWN. Um pedido atendido continua registrado com o ID da nova tarefa.
+Além do título, agente, protocolo e situação, retorna `vault_id` como identificador da ação (não autorização de leitura), e `new_validation_request:{reason,requested_at,fulfilled_validation_id}` somente quando aquele dossiê emitiu um pedido. N2 nunca recebe o motivo de sigilo/retirada. Situação do card: WAITING_N3, PUBLISHED, RESTRICTED, NEW_VALIDATION_REQUESTED; se publicada e retirada, mostrar WITHDRAWN. Um pedido atendido continua registrado com o ID da nova tarefa. Se essa tarefa gerar outro dossiê e outro pedido, o novo card mostra o novo motivo e atendimento pendente, sem reaproveitar o pedido anterior.
 
 ### Complemento das consultas de validação
 
-`GET /validations/{id}` e cards devolvem motivo de encerramento N2, motivos de devolução e pedido N3 autorizado à equipe desta tarefa. Não copiam motivo de sigilo de outro campo. N1 vê sua análise e entregas, mesmo depois do encerramento, enquanto possuir vínculo atual; isso não é leitura da cópia ministerial. N2 revisa essas entregas, mas não lê campos internos do dossiê após envio.
+`GET /validations/{id}` e cards devolvem motivo de encerramento N2, motivos de devolução e pedido N3 que originou esta tarefa, localizado por `request_fulfilled_by_validation_id`. O pedido emitido pelo próprio dossiê fica no acompanhamento de envios. Não copiam motivo de sigilo de outro campo. N1 vê sua análise e entregas, mesmo depois do encerramento, enquanto possuir vínculo atual; isso não é leitura da cópia ministerial. N2 revisa essas entregas, mas não lê campos internos do dossiê após envio.
 
-## 2. Escolhas para fechar a implementação — revisão final
+## 2. Transporte, segurança e limites de execução
 
-Estas escolhas completam o plano; foram feitas agora dentro do pedido de consolidar, não são uma alegação de teste ou aprovação anterior.
+Esta seção complementa os contratos das rotas com as regras de transporte, credenciais e execução. A evidência de comportamento fica em [AUTH_LAB.md](AUTH_LAB.md); a documentação não substitui os testes.
 
 ### Cookies e validação
 
-JWT HS256, chave aleatória de pelo menos 32 bytes para access, outra para restrito e outra para CSRF; fora do banco/repositório. Algoritmo fixo no servidor. `iss="aps-lab"`; `aud="aps-lab-api"`. Claims comuns `sub,type,jti,iat,exp,iss,aud`; restrito inclui `attempt_id,stage,operation`; access inclui `session_id`. `type` é RESTRICTED ou ACCESS. JWT assinado não é conteúdo secreto: não incluir senha, face, parecer ou permissões como única prova.
+JWT HS256 com chaves derivadas por finalidade a partir de uma única SECRET_KEY de pelo menos 32 bytes aleatórios, mantida fora do banco/repositório. TokenJwt.key separa ACCESS, RESTRICTED, CSRF e VECTORS; a simulação também separa o modo nas derivações. Algoritmo fixo no servidor; iss="aps-lab" e aud="aps-lab-api". Claims comuns: sub,type,jti,iat,exp,iss,aud. Restrito inclui attempt_id,stage,operation; access inclui session_id. JWT assinado não é conteúdo secreto: não incluir senha, face, parecer ou permissões como única prova.
 
 Cookies `lab_access` (Path `/api/v1`), `lab_refresh` (Path `/api/v1/auth`), `lab_stage` (Path `/api/v1/auth`) e `lab_csrf_context` (Path `/api/v1`): HttpOnly, SameSite=Strict, sem Domain. Emissão normal de sessão limpa cookie de etapa. Limpeza usa mesmo nome/Path. Max-Age corresponde ao prazo real restante. Respostas privadas/autenticação: `Cache-Control: no-store`.
 
-Escolha local: servir front e API na MESMA origem HTTPS, com certificado local confiável, e cookies Secure=true. A preparação desse HTTPS ainda será implementada, sem exigir deploy ou Nginx. Para testes isolados HTTP de desenvolvedor, Secure=false só em ENVIRONMENT=development/test e loopback; esse modo não é o padrão nem funciona como configuração para rede. HTTPS também permite a câmera com navegador; autorização de câmera continua necessária.
+Interface e API usam a mesma origem. Em HTTPS, cookies usam Secure=true. Em desenvolvimento local, HTTP sem Secure é aceito somente em ENVIRONMENT=development/test e loopback. Rede e produção exigem HTTPS com certificado confiável; sua implantação permanece pendente de validação. A câmera também exige contexto seguro e permissão do navegador.
 
 CSRF: token aleatório com assinatura HMAC ligada ao contexto, nunca double-submit sem assinatura. GET de preparação devolve token, e cada POST/PATCH/DELETE verifica header, assinatura e contexto. Confirmar Origin exata; quando Origin ausente, conferir origem do Referer; ausência de ambos em mutação browser é negada. Bloquear `Sec-Fetch-Site: cross-site`; não habilitar CORS para terceiros. Rotacionar contexto após login, mudança de etapa, renovação ou logout; frontend busca novo CSRF. Token CSRF pode ser lido pelo JavaScript; tokens de autenticação não.
 
@@ -668,21 +668,21 @@ Base da escolha: [OWASP sobre CSRF](https://cheatsheetseries.owasp.org/cheatshee
 
 Um processo backend. Rate limit em memória por IP e operação: login 10/minuto; refresh 30/minuto; chamadas de biometria 6/minuto; demais alterações 60/minuto; leituras 120/minuto. A janela é fixa de 60 segundos; excesso retorna 429 e Retry-After. Não confiar em X-Forwarded-For sem proxy conhecido. Reiniciar limpa rate limit, mas NÃO a contagem biométrica persistida por usuário.
 
-JSON até 256 KiB. Multipart biométrico até 16 MiB no total, até 20 imagens, cada arquivo até 1 MiB, JPEG/PNG, largura até 1.920, altura até 1.080 e área até 2.073.600 pixels. São tetos de transporte, não a quantidade final de frames do modelo. Verificar bytes reais, formato, dimensões e decodificação limitada; nome/MIME informados não provam tipo. Frames apenas em memória, descartados ao terminar. Uma execução biométrica por vez; se ocupada, 429 com Retry-After=1, sem fila ilimitada; timeout de 30 segundos retorna 503 e não conta fraude. Não liberar a vaga do processamento enquanto o trabalho subjacente ainda estiver rodando.
+JSON até 256 KiB. Multipart biométrico até 16 MiB no total, exatamente cinco imagens; o parser aceita no máximo cinco arquivos e nenhum campo textual. Cada arquivo tem até 1 MiB, formato JPEG/PNG, largura até 1.920, altura até 1.080 e área até 2.073.600 pixels. Quantidade/campos incompatíveis recebem 422. O backend verifica bytes reais, formato, dimensões e decodificação limitada; nome/MIME informados não provam tipo. Frames permanecem em memória. Uma execução biométrica por vez e por processo; ocupação retorna 429 com Retry-After=1, sem fila; timeout de 30 segundos retorna 503 sem contar fraude. A vaga permanece ocupada até o trabalho subjacente terminar.
 
-Os modelos definirão quantidade/intervalo de frames, crops, limiares, resolução interna e agregação; estes parâmetros não podem ser fechados com honestidade antes dos testes. Interface do sistema: entrada validada e usuário esperado; saída aprovado/reprovado/qualidade insuficiente/indisponível, sem expor embeddings ou scores ao cliente.
+O código define cinco frames, intervalo de captura aproximado de 450 ms no navegador, recortes, limiares e agregação descritos em AUTH_LAB.md. São parâmetros iniciais da implementação, sem calibração de eficácia comprovada. A interface recebe entrada validada e conta esperada e informa aprovação, reprovação, qualidade insuficiente ou indisponibilidade, sem expor embeddings ou scores.
 
 ### Concorrência, persistência e segurança da tela
 
-Transações e bloqueio por agente para cadastro/envio/edição/estado/criação/decisão; índices únicos como segunda proteção. Bloqueio por email normalizado para pedido/criação/aprovação/correção, sempre na mesma ordem; reserva N2 com bloqueio do grupo e N3 com bloqueio global da posição. Bloquear usuário em contadores/recuperações/trocas de credenciais. Bloquear sessão e refresh na rotação. Nenhum “consultar e depois gravar” sem transação para esses fluxos.
+As alterações científicas serializam pela amostra antes da investigação/dossiê; índices únicos complementam essa proteção. Pedidos, aprovação, correção de contas e reserva de posição usam o advisory lock transacional de cadastros, com identidade e vaga revalidadas no mesmo fluxo. Contadores, recuperações e trocas de credencial bloqueiam a conta. Login/logout ordenam contas por UUID; refresh bloqueia sessão antes do token. As escritas e suas verificações críticas pertencem à mesma transação.
 
 Todas as 18 tabelas da aplicação usam soft_delete, sem DELETE físico ou expurgo automático neste MVP. Consultas normais, JOINs, totais e autorização filtram excluídos; restauração autorizada reutiliza a linha e mantém PKs, unicidade e FKs. Não há restauração automática em cascata. Pedido pendente e validação em andamento excluídos deixam de ocupar vaga; restauração que conflita com outro registro retorna 409. Sessões/tokens restaurados continuam sujeitos a uso, revogação e expiração. Não criar rotas genéricas de exclusão/restauração só porque a coluna existe. Não persistir frames nem temporárias em texto. Logs não copiam corpo de requisição/resposta sensível. Nome e motivo científico exibidos por textContent/escape; CSP restringe scripts/conexões à origem, sem HTML de usuário. A política permite imagens próprias/data para prévia local, estilos/scripts externos da própria aplicação e proíbe objetos/frames; avaliar blob somente se preview realmente usar. Erro não mostra stack trace.
 
-## 3. Páginas e organização para desenvolver
+## 3. Navegação e organização
 
 Páginas públicas: Login e Notícias/lista/detalhe. Etapas: Cadastro facial, Reconhecimento facial e Definir senha. Todos têm menu Alterar senha e Sair. N1: Agentes, cadastro, detalhe com cards e validação editável/leitura. N2: Agentes, Revisões, Enviadas ao N3 e Solicitações. N3: Cofre/dossiê, Publicações e Solicitações. ADMIN: Solicitações, Contas e Auditoria administrativa. Não criar perfil nem página para cada transição.
 
-Estrutura atual: `facial_recognition/{core,routers,schemas,seed,migrations,utils,frontend}`, além de `docs` e `tests`. Configuração, conexão, autenticação, autorização e modelos ficam em core; routers traduzem HTTP; schemas definem contratos; seed prepara catálogos e ADMIN. Frontend usa HTML/CSS/JavaScript sem build. O desenho anterior com services/repositories separados não foi adotado neste recorte; as operações científicas ainda serão implementadas. Não criar camadas ou reorganizar novamente sem necessidade concreta.
+Estrutura atual: `facial_recognition/{core,routers,schemas,seed,migrations,utils,frontend}`, além de `docs` e `tests`. Configuração, conexão, autenticação, autorização e modelos ficam em core; routers traduzem HTTP; schemas definem contratos; seed prepara catálogos e ADMIN. Frontend usa HTML/CSS/JavaScript sem build. O desenho anterior com services/repositories separados não foi adotado neste recorte; as operações científicas estão implementadas em routers com regras compartilhadas em core/laboratory.py. Não criar camadas ou reorganizar novamente sem necessidade concreta.
 
 Ordem: base/config/migrations → contas/permissões → login/simulador → agentes/validações → revisão/cofre/publicação → páginas → integração real e testes do conjunto. Testes precisam cobrir acessos negativos e concorrência em PostgreSQL real; mocks não comprovam constraints. Testar cookies/CSRF/câmera também no navegador. O `main.py` aplica migrations pendentes e preserva dados; não inicia a API e não executa reset automático.
 
@@ -699,7 +699,7 @@ Ordem: base/config/migrations → contas/permissões → login/simulador → age
 | N3 lê dossiê | Identificação do agente, entrega selada, relatório interno, ficha, decisão e metadados/motivos N3. |
 | Notícia pública | `id,title,subtitle,risk_category,body,published_at`. Campos public_* do banco são projetados nestes nomes. |
 
-Limites de motivos de rejeição, desativação, recuperação, reativação, devolução, encerramento, sigilo, pedido N3 e retirada: 1.500. Obrigatórios nas ações que pedem motivo; reativação usa esse padrão nesta consolidação. Campos não utilizados numa operação são rejeitados, não ignorados silenciosamente.
+Limites de motivos de rejeição, desativação, recuperação, reativação, devolução, encerramento, sigilo, pedido N3 e retirada: 1.500. Obrigatórios nas ações que pedem motivo; reativação usa o mesmo limite. Campos não utilizados numa operação são rejeitados, não ignorados silenciosamente.
 
 Grupos não atravessam permissões: consulta do criador N1 ao cadastro continua exigindo vínculo com validação autorizado, conforme a regra geral. Contas desativadas não leem nada privado. N3 novo assume o cofre; N2 novo vê o grupo e pedidos da área; autores anteriores permanecem registrados.
 
@@ -735,7 +735,7 @@ Salvar rascunho altera somente campos enviados. Repetir envio de uma entrega já
 
 Se a mesma publicação já está vigente, repetir Publicar retorna a publicação existente, sem duplicar. Se retirada, Publicar não restaura: 409. Repetir Retirar devolve a situação já retirada, sem trocar motivo/autoria/data. Para sigilo ou pedido N3 já decididos, repetição com conteúdo diferente retorna 409; não sobrescrever motivo. Decisão terminal não muda para outra ação.
 
-Implementação deve padronizar tipos/datas e aplicar as garantias descritas em DATABASE.md. Estes documentos fecham o desenho para revisão; a migration inicial define a estrutura do banco; serviços, rotas e seus testes continuam como trabalho de implementação.
+A implementação padroniza tipos/datas com os schemas e aplica as garantias descritas em DATABASE.md. A migration inicial define a estrutura; regras entre tabelas e autorização também dependem das transações da aplicação.
 
 ## Referência detalhada de acesso e autenticação
 
@@ -743,7 +743,7 @@ Implementação deve padronizar tipos/datas e aplicar as garantias descritas em 
 
 N2 solicita conta N1 do próprio grupo; N3 solicita conta N2 escolhendo grupo; ADMIN pode cadastrar qualquer nível institucional diretamente, com aprovação automática. N2 não escolhe grupo ou papel livremente: o backend os deriva.
 
-O solicitante entrega a a senha temporária pessoalmente, fora do sistema; o site pode sugerir uma senha aleatória. Não enviamos email. Enquanto o pedido está pendente, não existe conta: só os dados do pedido e o hash da senha. ADMIN aprova ou rejeita com motivo, sem editar o pedido. Aprovação cria a conta com soft_delete=FALSE, status=PENDING_ACTIVATION e activated_at nulo, e inicia 24 horas de validade; remove o hash do pedido na mesma operação. Rejeição também remove esse hash, guarda histórico e não cria conta. Outra tentativa usa novo formulário.
+O solicitante entrega a senha temporária pessoalmente, fora do sistema; o site pode sugerir uma senha aleatória. Não enviamos email. Enquanto o pedido está pendente, não existe conta: só os dados do pedido e o hash da senha. ADMIN aprova ou rejeita com motivo, sem editar o pedido. Aprovação cria a conta com soft_delete=FALSE, status=PENDING_ACTIVATION e activated_at nulo, e inicia 24 horas de validade; remove o hash do pedido na mesma operação. Rejeição também remove esse hash, guarda histórico e não cria conta. Outra tentativa usa novo formulário.
 
 A senha temporária permite retomar a ativação até vencer: primeiro login não a consome. Só é invalidada quando a senha definitiva é criada. Na primeira conclusão da ativação, o backend define status=ACTIVE e activated_at=COALESCE(activated_at,NOW()), sem sobrescrever essa data em reativações. Se vencer, ADMIN revalida a MESMA senha por mais 24 horas. Se a face já foi cadastrada, não é cadastrada outra vez: a pessoa reconhece sua face e vai à troca de senha.
 
@@ -759,7 +759,9 @@ O sistema permite uma conta por vez no mesmo perfil do navegador. Se Ana estiver
 
 Até três reprovações biométricas por tentativa; também três reprovações reais por usuário numa janela de 15 minutos causam bloqueio de cinco minutos. Novo login não zera contador. Falha de processamento e captura ruim não contam como fraude; PAD reprovado ou rosto válido que não contam. Sucesso completo limpa os controles; ao terminar o bloqueio inicia outro ciclo de contagem sem restaurar tokens. Bloqueio encerrado não restaura tokens expirados.
 
-Senhas temporárias e definitivas: 8 a 128 caracteres e consulta a TXT local de senhas previsíveis. Não obrigar combinações arbitrárias de maiúscula/símbolo. Comparação escolhida para revisão: senha inteira, com distinção de maiúsculas, sem remover espaços da senha; nunca consultar senha pela rede. Arquivo carregado uma vez no servidor; ausência da lista impede criar novas senhas, mas não impede verificar login existente. Referência: [SecLists — 10k-most-common.txt](https://github.com/danielmiessler/SecLists/blob/master/Passwords/Common-Credentials/10k-most-common.txt). Fixar revisão e checksum na implementação. A mensagem é “A senha é muito fraca. Escolha outra senha.”
+Senhas temporárias e definitivas: 8 a 128 caracteres e consulta a TXT local de senhas previsíveis. Não obrigar combinações arbitrárias de maiúscula/símbolo. Comparação implementada: senha inteira, com distinção de maiúsculas, sem remover espaços da senha; nunca consultar senha pela rede. Arquivo carregado uma vez no servidor; ausência da lista impede criar novas senhas, mas não impede verificar login existente. Referência: [SecLists — 10k-most-common.txt](https://github.com/danielmiessler/SecLists/blob/master/Passwords/Common-Credentials/10k-most-common.txt). A origem e o SHA-256 do arquivo local estão registrados em AUTH_LAB.md. A mensagem é “A senha é muito fraca. Escolha outra senha.”
+
+Hash e comparação Argon2, inclusive nas duas conclusões de senha, executam em thread; os locks e a revalidação permanecem na transação. Login e logout bloqueiam as contas dos contextos recebidos em ordem de UUID antes de alterar sessões/tentativas. O login relê a credencial após esse bloqueio. O lock `FOR NO KEY UPDATE` preserva a serialização sem bloquear as referências de autoria da auditoria. Refresh bloqueia sessão antes de token e revalida ambos; revogação mantém essa ordem.
 
 ### Recuperação e alteração de contas
 
@@ -767,10 +769,10 @@ Não há página “Editar dados”. Há “Alterar senha”: sessão válida, s
 
 Somente ADMIN recupera senha esquecida (nova temporária, face mantida), biometria (exclui logicamente os embeddings e autoriza recadastro, senha mantida) ou ambas. Vetores anteriores são excluídos logicamente e deixam de participar da comparação. Recuperação facial com senha definitiva válida termina em sessão sem exigir outra troca de senha. Apenas faltar um embedding não autoriza cadastrar face.
 
-Desativar conta revoga sessões/tentativas e libera posição, preservando email e história. Reativar limpa soft_delete, volta a PENDING_ACTIVATION e sempre exige nova temporária e novo cadastro facial, com troca de senha; activated_at mantém a data da primeira ativação. ADMIN também corrige nome/email/papel/grupo; mudança de email ou permissões revoga sessão. Não altera dados históricos. Mudança de grupo/papel de responsável em tarefa ainda em preparação exige substituição pelo N2 antes, para não deixar editor fora do grupo. Desativação da conta nunca é impedida por esse motivo: bloqueia acesso imediatamente, mantém tarefa/história e N2 deve atribuir outro responsável antes de continuar. Se a tarefa está em revisão, N2 pode concluir a revisão ou devolver antes de trocar. Essas são escolhas desta consolidação para revisão.
+Desativar conta revoga sessões/tentativas e libera posição, preservando email e história. Reativar limpa soft_delete, volta a PENDING_ACTIVATION e sempre exige nova temporária e novo cadastro facial, com troca de senha; activated_at mantém a data da primeira ativação. ADMIN também corrige nome/email/papel/grupo; mudança de email ou permissões revoga sessão. Não altera dados históricos. Mudança de grupo/papel de responsável em tarefa ainda em preparação exige substituição pelo N2 antes, para não deixar editor fora do grupo. Desativação da conta nunca é impedida por esse motivo: bloqueia acesso imediatamente, mantém tarefa/história e N2 deve atribuir outro responsável antes de continuar. Se a tarefa está em revisão, N2 pode concluir a revisão ou devolver antes de trocar. Essas restrições preservam o escopo da equipe e a autoria histórica.
 
 
 
 ## Simulação local de biometria
 
-`BIOMETRICS_MODE` é obrigatório (`real`/`simulated`). A simulação só é permitida em `development`/`test`. `GET /auth/flow` acrescenta `biometrics_mode` para a interface escolher a etapa sem câmera. `POST /auth/biometric/simulate` não recebe corpo; exige CSRF, cookie restrito vigente e etapa ENROLL_FACE/VERIFY_FACE de ACTIVATION/LOGIN/RECOVERY. Revalida conta/credencial/tentativa em transação, confere validade da temporária e autorização de cadastro, registra BIOMETRIC_SIMULATED e retorna a próxima etapa ou sessão. Não grava vetores. Fora do modo permitido retorna 403. Os endpoints reais de biometria recusam execução no modo simulado. Permissões e demais regras de autenticação permanecem vigentes. Limites e cuidados estão em AUTH_LAB.md.
+`BIOMETRICS_MODE` é obrigatório (`real`/`simulated`). A simulação só é permitida em `development`/`test`. `GET /auth/flow` acrescenta `biometrics_mode` para a interface escolher a etapa sem câmera. `POST /auth/biometric/simulate` não recebe corpo; exige CSRF, cookie restrito vigente e etapa ENROLL_FACE/VERIFY_FACE de ACTIVATION/LOGIN/RECOVERY/PASSWORD_CHANGE. Revalida conta/credencial/tentativa em transação, confere validade da temporária e autorização de cadastro, registra BIOMETRIC_SIMULATED e retorna a próxima etapa ou sessão. Não grava vetores. Fora do modo permitido retorna 403. Os endpoints reais de biometria recusam execução no modo simulado. Permissões e demais regras de autenticação permanecem vigentes. Limites e cuidados estão em AUTH_LAB.md.
