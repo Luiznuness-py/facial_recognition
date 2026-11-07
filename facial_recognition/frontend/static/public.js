@@ -22,19 +22,14 @@ import {
 } from './ui.js';
 import { api } from './api.js';
 import { query } from './admin.js';
+import { photograph } from './photos.js';
 const refresh = () => window.dispatchEvent(new Event('render-page'));
 export async function publications(params, internal = false) {
   const box = el('section', {
     class: internal ? 'panel' : 'bulletin-list',
     'aria-label': 'Publicações'
   });
-  const intro = internal ? heading('Publicações', 'Consulte as notícias autorizadas e gerencie retiradas.') : el('section', { class: 'public-intro' }, el('figure', { class: 'public-masthead' }, el('img', {
-    src: '/static/assets/tucano.jpg',
-    width: 1280,
-    height: 753,
-    alt: 'Tucano-toco de perfil, com bico alaranjado.',
-    fetchPriority: 'high'
-  }), el('figcaption', {}, 'Tucano-toco · Ramphastos toco', el('span', {}, 'Fotografia ilustrativa · ', link('AntanO · CC BY-SA 4.0', 'https://commons.wikimedia.org/wiki/File:Toco_toucan_(Ramphastos_toco)_close-up.jpg')))), el('div', { class: 'public-cover' }, el('div', { class: 'public-context' }, el('p', {}, 'Fauna, saúde e ambiente.'), el('p', {}, 'Um projeto acadêmico sobre investigação e divulgação responsável.'), link('Conheça o projeto', '#sobre-projeto')), el('div', { class: 'public-title' }, el('h1', {}, 'Investigar para preservar.'), el('p', {}, 'Da análise de uma amostra ao conhecimento compartilhado. Acompanhe as publicações autorizadas do laboratório.'), el('a', {
+  const intro = internal ? heading('Publicações', 'Consulte as notícias autorizadas e gerencie retiradas.') : el('section', { class: 'public-intro' }, el('div', { class: 'public-masthead' }, photograph('amazonia', true), photograph('tucano')), el('div', { class: 'public-cover' }, el('div', { class: 'public-context' }, el('p', {}, 'Fauna, saúde e ambiente.'), el('p', {}, 'Um projeto acadêmico sobre investigação e divulgação responsável.'), el('small', {}, 'Fotografias ilustrativas de fauna e ecossistemas.'), link('Conheça o projeto', '#sobre-projeto')), el('div', { class: 'public-title' }, el('h1', {}, 'Investigar para preservar.'), el('p', {}, 'Da análise de uma amostra ao conhecimento compartilhado. Acompanhe as publicações autorizadas do laboratório.'), el('a', {
     class: 'button',
     href: '#publicacoes'
   }, 'Explorar publicações', icon('arrow')))));
@@ -80,7 +75,10 @@ export async function publications(params, internal = false) {
     }, el('h2', {}, 'Pesquisa com propósito.'), el('div', {}, el('p', {}, 'Investigar, revisar e decidir o que compartilhar. Este laboratório fictício acompanha cada etapa da pesquisa, preservando os registros e os limites de acesso.'), el('p', {}, 'As notícias desta página passam por autorização. Relatórios, dados da equipe e informações reservadas permanecem na área institucional.'), el('a', {
       href: '#/login',
       class: 'button secondary'
-    }, 'Acessar o laboratório', icon('arrow')))) : null
+    }, 'Acessar o laboratório', icon('arrow')))) : null,
+    !internal ? el('section', {
+      class: 'public-landscapes', 'aria-label': 'Ecossistemas brasileiros · fotografias ilustrativas'
+    }, photograph('anavilhanas'), photograph('mata-atlantica')) : null
   ];
 }
 export async function publicationDetail(id, internal = false) {

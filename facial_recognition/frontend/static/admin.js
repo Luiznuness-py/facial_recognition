@@ -77,6 +77,7 @@ export async function accountForm(initial = {}, edit = false) {
     f.controls.team_id.required = !noTeam;
     if (noTeam)
       f.controls.team_id.value = '';
+    f.controls.team_id.dispatchEvent(new Event('change', { bubbles: true }));
   };
   f.controls.role_code.addEventListener('change', updateTeam);
   updateTeam();

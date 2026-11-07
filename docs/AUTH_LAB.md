@@ -131,7 +131,7 @@ O laboratório cobre cadastro e primeira investigação atômicos, consultas por
 
 A [carga fictícia manual](../README.md#carga-fictícia-de-desenvolvimento) só executa em development/simulated e não modifica senhas existentes. Os testes comuns usam rollback; os testes de concorrência usam conexões independentes e removem somente seus schemas aleatórios `race_<uuid>` e `auth_race_<uuid>` em finally.
 
-A integração visual com este backend continua sem prova: o controle de navegador está desativado nas configurações Work desta sessão. A eficácia do reconhecimento e do PAD, a captura física e FAR/FRR exigem avaliação própria. Os testes HTTP que substituem inferência ou usam simulação verificam estados e autorização, sem comprovar biometria.
+A integração visual completa com este backend continua pendente. Depois da liberação do navegador integrado, o layout foi revisado com respostas fictícias isoladas, conforme [FRONTEND.md](FRONTEND.md#revisão-visual-no-navegador-integrado--04112026). Na demonstração posterior, com API e banco próprios, foram conferidos visualmente o login N1, a etapa simulada, amostras e publicações, sem percorrer todos os fluxos autenticados no navegador. A eficácia do reconhecimento e do PAD, a captura física e FAR/FRR exigem avaliação própria. Os testes HTTP que substituem inferência ou usam simulação verificam estados e autorização, sem comprovar biometria.
 
 ## Validação da implementação — 04/11/2026
 
@@ -164,6 +164,22 @@ A revisão conferiu 331 funções/métodos nos 71 arquivos Python da aplicação
 A suíte foi repetida depois das alterações: **152 testes e 8 subtestes passaram, com 6 avisos, em 132,56 s**. Passaram também os imports dos 55 módulos da aplicação, as 59 operações documentadas no OpenAPI, sintaxe dos sete módulos JavaScript, parsing dos 13 Markdown, 409 links locais com âncoras, sintaxe Bash dos exemplos e git diff --check. Os quatro hashes dos pesos locais correspondem aos registrados em models/README.md.
 
 Não houve commit/push, alteração de dependências, migrations ou lógica de negócio. A instalação do zero, os comandos PowerShell em Windows nativo, links externos, renderização visual do README e a integração com câmera física não foram repetidos nessa revisão. As limitações de eficácia biométrica e de integração visual do backend permanecem as registradas acima.
+
+## Validação após o refinamento da interface — 04/11/2026
+
+A base funcional/documental foi registrada no commit local `36bf438` antes das alterações visuais, conforme solicitado. A nova rodada completa passou com **154 testes e oito subtestes**, seis avisos, em **134,58 s**, sem skips. Os 52 testes direcionados de frontend, cookies e request-id passaram em 1,83 s. Os oito cenários DOM de seleção, senha e filtros passam pelo teste Python correspondente e também podem rodar diretamente com Node 18+; não representam oito casos Python adicionais.
+
+Os testes novos verificam teclado/estado dos controles e entrega dos oito WebP locais, dimensões, proporção, tamanho e créditos. Passaram sintaxe Python/JavaScript, docstrings de 333 funções/métodos, imports dos 55 módulos da aplicação, contratos documentados no OpenAPI, lint de fontes visuais e `git diff --check`. A lógica Python da aplicação permanece igual à do commit funcional; somente os testes Python receberam novos cenários. Detalhes estão em [FRONTEND.md](FRONTEND.md#validação-deste-refinamento--04112026).
+
+As execuções presas no sandbox foram encerradas antes da rodada sequencial bem-sucedida com acesso ao PostgreSQL local. Nessa rodada anterior à liberação do navegador, a renderização ainda estava bloqueada no Work. A revisão visual subsequente está registrada em FRONTEND.md; motores Chrome/Edge/Firefox/Safari/Brave separados e leitor de tela continuam pendentes. Os testes não comprovam eficácia facial/PAD. Não houve novo commit/push, alteração de dependências da aplicação ou migrations, nem reset manual de `public`/volume.
+
+## Revalidação após a revisão visual — 04/11/2026
+
+Após o usuário habilitar o navegador integrado, o layout atual foi revisado com respostas fictícias isoladas e recebeu correções de responsividade, foco, scroll e apresentação de erros. As duas regressões de foco falharam antes da correção e ampliaram os contratos JavaScript para dez cenários. As 151 medições de largura e as capturas estão descritas em [FRONTEND.md](FRONTEND.md#revisão-visual-no-navegador-integrado--04112026).
+
+A suíte completa final passou: **154 testes e oito subtestes**, seis avisos, em **456,48 s**, sem skips. O teste Python de interface inclui os dez cenários JavaScript; eles não aumentam a contagem de casos Python. A primeira tentativa foi encerrada antes de concluir e não conta como aprovação. A repetição em sessão persistente terminou sem falhas, com testes comuns sequenciais. A prévia visual não conectou ao PostgreSQL nem alterou dados reais. A duração total local não é benchmark de produção.
+
+Sintaxe Python/JavaScript, docstrings, links locais, lint de fontes visuais e `git diff --check` passaram. A lógica Python da aplicação continua igual à do commit funcional. A revisão em navegador integrado com fixtures não demonstra integração visual autenticada com PostgreSQL real, comportamento em todos os motores/dispositivos ou eficácia facial/PAD. Não houve commit, push, alteração de dependências/migrations ou reset manual de `public`/volume.
 
 ## Histórico de validações — 26/10/2026
 

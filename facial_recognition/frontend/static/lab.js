@@ -326,6 +326,7 @@ window.addEventListener('hashchange', () => {
   }
   state.dirty = false;
   lastHash = location.hash;
+  window.scrollTo(0, 0);
   render();
 });
 document.addEventListener('click', event => {

@@ -1,3 +1,4 @@
+import { photograph } from './photos.js';
 import {
   state,
   el,
@@ -95,13 +96,7 @@ export function loginView() {
   return el('div', {
     class: 'auth-layout',
     'data-ui': ''
-  }, el('section', { class: 'auth-context' }, el('div', { class: 'auth-story' }, el('h1', {}, 'Ciência que protege a vida.'), el('p', {}, 'Um espaço para investigar, colaborar e compartilhar conhecimento com responsabilidade.')), el('figure', { class: 'auth-visual' }, el('img', {
-    src: '/static/assets/tucano.jpg',
-    width: 1280,
-    height: 753,
-    alt: 'Tucano-toco de perfil. Fotografia ilustrativa.',
-    fetchPriority: 'high'
-  })), el('div', { class: 'auth-context-bottom' }, el('span', {}, 'Biossegurança ambiental'), link('Consultar notícias públicas', '#/noticias'))), el('section', { class: 'panel login-card' }, el('div', {
+  }, el('section', { class: 'auth-context' }, el('div', { class: 'auth-story' }, el('h1', {}, 'Ciência que protege a vida.'), el('p', {}, 'Um espaço para investigar, colaborar e compartilhar conhecimento com responsabilidade.')), el('div', { class: 'auth-visual' }, photograph('anavilhanas', true)), el('div', { class: 'auth-context-bottom' }, el('span', {}, 'Fotografia ilustrativa · Biossegurança ambiental'), link('Consultar notícias públicas', '#/noticias'))), el('section', { class: 'panel login-card' }, el('div', {
     class: 'access-symbol',
     'aria-hidden': 'true'
   }, icon('samples')), el('h2', {}, 'Entre no laboratório'), el('p', {}, 'Acesse seu ambiente de pesquisa com sua conta institucional.'), f.node, info('Primeiro acesso?', 'Use a senha temporária entregue pelo administrador. Você será orientado nas próximas etapas.'), el('p', { class: 'login-help' }, 'Precisa recuperar o acesso? Procure o administrador. O cadastro é restrito a contas aprovadas.')));
